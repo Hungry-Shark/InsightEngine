@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
+  Search,
 } from 'lucide-react';
 import { api, HistoryEntry } from '@/lib/api';
 import { useRouter } from 'next/navigation';
@@ -19,6 +20,7 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const router = useRouter();
 
   async function load() {
@@ -72,6 +74,15 @@ export default function HistoryPage() {
     window.dispatchEvent(new CustomEvent('loadReport'));
   }
 
+  const filteredHistory = history.filter((item) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      item.topic.toLowerCase().includes(q) ||
+      item.report.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="page-inner">
       <h1 className="section-header">History</h1>
@@ -94,6 +105,18 @@ export default function HistoryPage() {
         </div>
       ) : (
         <>
+          <div className="search-bar-container" style={{ position: 'relative', margin: '8px 0 24px 0' }}>
+            <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input 
+              type="text" 
+              placeholder="Search conversations..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="research-input"
+              style={{ paddingLeft: '48px', height: '52px', fontSize: '15px' }}
+            />
+          </div>
+
           <div
             style={{
               display: 'flex',
@@ -103,7 +126,7 @@ export default function HistoryPage() {
             }}
           >
             <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              {history.length} session{history.length !== 1 ? 's' : ''}
+              {filteredHistory.length} session{filteredHistory.length !== 1 ? 's' : ''} found
             </p>
             <button className="btn-danger" onClick={() => setShowClearConfirm(true)}>
               <Trash2 size={13} />
@@ -111,60 +134,66 @@ export default function HistoryPage() {
             </button>
           </div>
 
-          {history.map((item, i) => (
-            <div key={i} className="history-card">
-              <div
-                className="history-card-header"
-                onClick={() => setExpanded(expanded === i ? null : i)}
-              >
-                <span className="history-topic">{item.topic}</span>
-                <span className="history-ts">{item.ts}</span>
-                {expanded === i ? (
-                  <ChevronUp
-                    size={14}
-                    style={{ marginLeft: 10, opacity: 0.4, flexShrink: 0 }}
-                  />
-                ) : (
-                  <ChevronDown
-                    size={14}
-                    style={{ marginLeft: 10, opacity: 0.4, flexShrink: 0 }}
-                  />
+          {filteredHistory.length === 0 ? (
+            <div className="glass-card" style={{ padding: '32px', textAlign: 'center' }}>
+              <p style={{ color: 'var(--text-muted)' }}>No conversations match your search.</p>
+            </div>
+          ) : (
+            filteredHistory.map((item, i) => (
+              <div key={i} className="history-card">
+                <div
+                  className="history-card-header"
+                  onClick={() => setExpanded(expanded === i ? null : i)}
+                >
+                  <span className="history-topic">{item.topic}</span>
+                  <span className="history-ts">{item.ts}</span>
+                  {expanded === i ? (
+                    <ChevronUp
+                      size={14}
+                      style={{ marginLeft: 10, opacity: 0.4, flexShrink: 0 }}
+                    />
+                  ) : (
+                    <ChevronDown
+                      size={14}
+                      style={{ marginLeft: 10, opacity: 0.4, flexShrink: 0 }}
+                    />
+                  )}
+                </div>
+
+                {expanded === i && (
+                  <div className="history-card-body">
+                    <p className="history-snippet">
+                      {item.report.slice(0, 500)}
+                      {item.report.length > 500 ? '…' : ''}
+                    </p>
+                    <div className="history-actions">
+                      <button
+                        className="btn-secondary"
+                        onClick={() => openReport(item)}
+                      >
+                        <ExternalLink size={13} />
+                        Open
+                      </button>
+                      <button
+                        className="btn-secondary"
+                        onClick={() => downloadMd(item)}
+                      >
+                        <FileText size={13} />
+                        Download PDF
+                      </button>
+                      <button
+                        className="btn-danger"
+                        onClick={() => remove(i)}
+                      >
+                        <Trash2 size={13} />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
-
-              {expanded === i && (
-                <div className="history-card-body">
-                  <p className="history-snippet">
-                    {item.report.slice(0, 500)}
-                    {item.report.length > 500 ? '…' : ''}
-                  </p>
-                  <div className="history-actions">
-                    <button
-                      className="btn-secondary"
-                      onClick={() => openReport(item)}
-                    >
-                      <ExternalLink size={13} />
-                      Open
-                    </button>
-                    <button
-                      className="btn-secondary"
-                      onClick={() => downloadMd(item)}
-                    >
-                      <FileText size={13} />
-                      Download
-                    </button>
-                    <button
-                      className="btn-danger"
-                      onClick={() => remove(i)}
-                    >
-                      <Trash2 size={13} />
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+            ))
+          )}
         </>
       )}
 

@@ -6,6 +6,8 @@ import {
   Search,
   Settings,
   User,
+  Star,
+  MessageSquareDashed
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, HistoryEntry } from '@/lib/api';
@@ -61,19 +63,49 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* ── New Chat button ── */}
-      <button
-        className={`nav-btn ${pathname === '/' ? 'active' : ''}`}
-        onClick={() => {
-          window.dispatchEvent(new CustomEvent('newChat'));
-          router.push('/');
-        }}
-        style={{ marginTop: '4px' }}
-      >
-        <MessageSquarePlus size={18} className="nav-icon" />
-        <span className="nav-btn-label">New chat</span>
-        <span className="nav-tooltip">New chat</span>
-      </button>
+      {/* ── New Chat & Temp Chat Row ── */}
+      <div style={{ display: 'flex', gap: '8px', padding: '0 10px', marginTop: '12px' }}>
+        <button
+          className={`nav-btn ${pathname === '/' ? 'active' : ''}`}
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('newChat'));
+            router.push('/');
+          }}
+          style={{ flex: 1, padding: '10px 12px', marginBottom: 0 }}
+        >
+          <MessageSquarePlus size={18} className="nav-icon" />
+          <span className="nav-btn-label">New chat</span>
+          <span className="nav-tooltip">New chat</span>
+        </button>
+        {!collapsed && (
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <button
+              className="sidebar-icon-btn"
+              style={{ width: '36px', height: '36px', border: '1px dashed rgba(255,255,255,0.2)', borderRadius: '50%', padding: 0 }}
+              onClick={() => {
+                 window.dispatchEvent(new CustomEvent('newChat'));
+                 router.push('/');
+                 // Temp chat logic placeholder
+              }}
+              title="Temporary chat"
+            >
+              <MessageSquareDashed size={16} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── My stuff ── */}
+      <div style={{ padding: '0 10px', marginTop: '8px' }}>
+        <button
+          className={`nav-btn ${pathname === '/history' ? 'active' : ''}`}
+          onClick={() => router.push('/history')}
+        >
+          <Star size={18} className="nav-icon" />
+          <span className="nav-btn-label">My stuff</span>
+          <span className="nav-tooltip">My stuff</span>
+        </button>
+      </div>
 
       {/* ── Scrollable nav area ── */}
       <div className="sidebar-nav">

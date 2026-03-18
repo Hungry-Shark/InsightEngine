@@ -32,6 +32,9 @@ export const metadata: Metadata = {
   description:
     "AI-powered deep research & report generation. Get comprehensive, verified reports on any topic in minutes.",
   keywords: ["AI research", "report generation", "InsightEngine", "deep research"],
+  icons: {
+    icon: '/favicon.gif',
+  },
 };
 
 import Footer from "@/components/Footer";
