@@ -22,9 +22,9 @@ app = FastAPI(title="InsightEngine API", version="1.0.0")
 # Allow origins from environment variable or default to localhost
 allowed_origins = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
 # Add the specific Vercel URL from the user's screenshot if not already there
-vercel_url = "https://insight-engine-887.vercel.app"
-if vercel_url not in allowed_origins:
-    allowed_origins.append(vercel_url)
+for url in ["https://insight-engine-007.vercel.app", "https://insight-engine-887.vercel.app"]:
+    if url not in allowed_origins:
+        allowed_origins.append(url)
 
 app.add_middleware(
     CORSMiddleware,
