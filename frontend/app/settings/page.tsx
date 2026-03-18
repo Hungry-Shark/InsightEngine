@@ -1,0 +1,222 @@
+'use client';
+
+import { useState, useEffect, useId } from 'react';
+import {
+  Save,
+  RotateCcw,
+  Trash2,
+  Cpu,
+  Palette,
+  ShieldAlert,
+} from 'lucide-react';
+import { api, Settings } from '@/lib/api';
+import ConfirmModal from '@/components/ConfirmModal';
+
+const MODELS = [
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-exp',
+  'gemini-1.5-pro',
+  'gemini-1.5-flash',
+];
+
+const THEMES = ['Royal Purple', 'Midnight Blue', 'Forest Green'];
+
+export default function SettingsPage() {
+  const toggleId = useId();
+  const [form, setForm] = useState<Settings>({
+    model: 'gemini-2.0-flash',
+    verbose: false,
+    theme: 'Royal Purple',
+  });
+  const [status, setStatus] = useState<{
+    type: 'success' | 'error';
+    msg: string;
+  } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<'reset' | 'clearHistory' | null>(null);
+
+  useEffect(() => {
+    api.getSettings().then((d) => setForm(d)).catch(() => {});
+  }, []);
+
+  function flash(type: 'success' | 'error', msg: string) {
+    setStatus({ type, msg });
+    setTimeout(() => setStatus(null), 3000);
+  }
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      await api.updateSettings(form);
+      flash('success', 'Settings saved successfully.');
+    } catch (err: unknown) {
+      flash('error', err instanceof Error ? err.message : 'Save failed.');
+    }
+  }
+
+  async function doReset() {
+    setConfirmAction(null);
+    try {
+      await api.resetSettings();
+      const defaults = await api.getSettings();
+      setForm(defaults);
+      flash('success', 'Settings reset to defaults.');
+    } catch {
+      flash('error', 'Reset failed.');
+    }
+  }
+
+  async function doClearHistory() {
+    setConfirmAction(null);
+    try {
+      await api.clearHistory();
+      flash('success', 'Chat history cleared.');
+    } catch {
+      flash('error', 'Clear failed.');
+    }
+  }
+
+  return (
+    <div className="page-inner">
+      <h1 className="section-header">Settings</h1>
+      <p className="section-sub">
+        Configure model, preferences, and data management
+      </p>
+
+      {status && (
+        <div className={`alert alert-${status.type}`}>{status.msg}</div>
+      )}
+
+      <form onSubmit={save}>
+        {/* Model Configuration */}
+        <div className="glass-card">
+          <div className="settings-section-icon">
+            <div className="settings-icon-wrap purple">
+              <Cpu size={16} />
+            </div>
+            <p className="card-title">Model Configuration</p>
+          </div>
+          <div className="form-group">
+            <label className="form-label">LLM Model</label>
+            <select
+              className="form-select"
+              value={form.model}
+              onChange={(e) => setForm({ ...form, model: e.target.value })}
+            >
+              {MODELS.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="toggle-row">
+            <span className="toggle-label">
+              Enable verbose agent logging
+            </span>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                id={toggleId}
+                type="checkbox"
+                className="toggle-input"
+                checked={form.verbose}
+                onChange={(e) =>
+                  setForm({ ...form, verbose: e.target.checked })
+                }
+              />
+              <span className="toggle-switch" />
+            </label>
+          </div>
+        </div>
+
+        {/* UI Preferences */}
+        <div className="glass-card">
+          <div className="settings-section-icon">
+            <div className="settings-icon-wrap blue">
+              <Palette size={16} />
+            </div>
+            <p className="card-title">UI Preferences</p>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Theme</label>
+            <select
+              className="form-select"
+              value={form.theme}
+              onChange={(e) => setForm({ ...form, theme: e.target.value })}
+            >
+              {THEMES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Save / Reset */}
+        <div
+          className="action-row"
+          style={{ borderTop: 'none', marginTop: 0, paddingTop: 0 }}
+        >
+          <button type="submit" className="btn-primary">
+            <Save size={14} />
+            Save Settings
+          </button>
+          <button type="button" className="btn-secondary" onClick={() => setConfirmAction('reset')}>
+            <RotateCcw size={14} />
+            Reset Defaults
+          </button>
+        </div>
+      </form>
+
+      {/* Danger Zone */}
+      <div className="glass-card danger-zone" style={{ marginTop: 24 }}>
+        <div className="settings-section-icon">
+          <div className="settings-icon-wrap red">
+            <ShieldAlert size={16} />
+          </div>
+          <p className="card-title">Danger Zone</p>
+        </div>
+        <p
+          style={{
+            fontSize: 13,
+            color: 'var(--text-muted)',
+            marginBottom: 16,
+            lineHeight: 1.6,
+          }}
+        >
+          Permanently remove all chat history from the current session. This
+          action cannot be undone.
+        </p>
+        <button className="btn-danger" onClick={() => setConfirmAction('clearHistory')}>
+          <Trash2 size={13} />
+          Clear All Chat History
+        </button>
+      </div>
+
+      {/* Confirm Modals */}
+      <ConfirmModal
+        open={confirmAction === 'reset'}
+        title="Reset Settings"
+        message="Are you sure you want to reset all settings to their default values?"
+        confirmLabel="Reset"
+        onConfirm={doReset}
+        onCancel={() => setConfirmAction(null)}
+      />
+      <ConfirmModal
+        open={confirmAction === 'clearHistory'}
+        title="Clear All History"
+        message="This will permanently remove all chat history from the current session. This action cannot be undone."
+        confirmLabel="Clear All"
+        danger
+        onConfirm={doClearHistory}
+        onCancel={() => setConfirmAction(null)}
+      />
+    </div>
+  );
+}

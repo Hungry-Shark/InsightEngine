@@ -1,0 +1,11 @@
+crewai
+crewai[tools]
+langchain-google-genai
+langchain-groq
+litellm
+langchain_community
+tavily-python
+python-dotenv
+fpdf
+fastapi
+uvicorn[standard]

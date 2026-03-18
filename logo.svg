@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 50" width="300" height="50">
+  <defs>
+    <!-- Dark silver to white linear gradient -->
+    <linearGradient id="geminiGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#b0b8c1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- The stylized generic "sparkle" icon -->
+  <path d="M25 5 L28 18 L41 21 L28 24 L25 37 L22 24 L9 21 L22 18 Z" fill="url(#geminiGrad)" />
+  <!-- Text Logo -->
+  <text x="50" y="32" font-family="'Quincy', 'Quincy CF', 'Gelasio', serif" font-size="28" font-weight="600" fill="url(#geminiGrad)">InsightEngine</text>
+</svg>
