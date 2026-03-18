@@ -19,9 +19,16 @@ if not os.environ.get("GOOGLE_API_KEY") and os.environ.get("GEMINI_API_KEY"):
 
 app = FastAPI(title="InsightEngine API", version="1.0.0")
 
+# Allow origins from environment variable or default to localhost
+allowed_origins = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+# Add the specific Vercel URL from the user's screenshot if not already there
+vercel_url = "https://insight-engine-887.vercel.app"
+if vercel_url not in allowed_origins:
+    allowed_origins.append(vercel_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Allow all origins dynamically (easier for Render to Vercel communication)
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
