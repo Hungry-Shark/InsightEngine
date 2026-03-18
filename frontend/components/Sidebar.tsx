@@ -12,7 +12,7 @@ import {
   Menu,
   X
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { api, HistoryEntry } from '@/lib/api';
 
 export default function Sidebar() {
@@ -22,16 +22,50 @@ export default function Sidebar() {
   const [recents, setRecents] = useState<HistoryEntry[]>([]);
   const [profileName, setProfileName] = useState('User');
 
+  const checkUnsaved = (callback: () => void) => {
+    if (sessionStorage.getItem('has_unsaved_temp') === 'true') {
+      const id = Date.now().toString();
+      const handler = (e: any) => {
+        if (e.detail.id === id) {
+          window.removeEventListener('navResolved', handler);
+          if (e.detail.proceed) callback();
+        }
+      };
+      window.addEventListener('navResolved', handler);
+      window.dispatchEvent(new CustomEvent('promptSave', { detail: { id } }));
+    } else {
+      callback();
+    }
+  };
+
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setCollapsed(true);
+    }
+    const handleToggle = () => setCollapsed((c) => !c);
+    window.addEventListener('toggleSidebar', handleToggle);
+    return () => window.removeEventListener('toggleSidebar', handleToggle);
+  }, []);
+
+  const fetchHistory = useCallback(() => {
     api
       .getHistory()
       .then((d) => setRecents(d.history.slice(-10).reverse()))
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchHistory();
     api
       .getProfile()
       .then((p) => setProfileName(p.name || 'User'))
       .catch(() => {});
-  }, [pathname]);
+  }, [pathname, fetchHistory]);
+
+  useEffect(() => {
+    window.addEventListener('historyUpdated', fetchHistory);
+    return () => window.removeEventListener('historyUpdated', fetchHistory);
+  }, [fetchHistory]);
 
   const initials = profileName
     .split(' ')
@@ -56,7 +90,7 @@ export default function Sidebar() {
         {!collapsed && (
           <button
             className="sidebar-icon-btn"
-            onClick={() => router.push('/history')}
+            onClick={() => checkUnsaved(() => router.push('/history'))}
             aria-label="Search history"
           >
             <Search size={18} />
@@ -68,10 +102,10 @@ export default function Sidebar() {
       <div style={{ display: 'flex', gap: '8px', padding: '0 10px', marginTop: '12px' }}>
         <button
           className={`nav-btn ${pathname === '/' ? 'active' : ''}`}
-          onClick={() => {
+          onClick={() => checkUnsaved(() => {
             window.dispatchEvent(new CustomEvent('newChat'));
             router.push('/');
-          }}
+          })}
           style={{ flex: 1, padding: '10px 12px', marginBottom: 0 }}
         >
           <MessageSquarePlus size={18} className="nav-icon" />
@@ -83,11 +117,10 @@ export default function Sidebar() {
             <button
               className="sidebar-icon-btn"
               style={{ width: '36px', height: '36px', border: '1px dashed rgba(255,255,255,0.2)', borderRadius: '50%', padding: 0 }}
-              onClick={() => {
-                 window.dispatchEvent(new CustomEvent('newChat'));
+              onClick={() => checkUnsaved(() => {
+                 window.dispatchEvent(new CustomEvent('tempChat'));
                  router.push('/');
-                 // Temp chat logic placeholder
-              }}
+              })}
               title="Temporary chat"
             >
               <MessageSquareDashed size={16} />
@@ -99,8 +132,8 @@ export default function Sidebar() {
       {/* ── My stuff ── */}
       <div style={{ padding: '0 10px', marginTop: '8px' }}>
         <button
-          className="nav-btn"
-          onClick={() => {}}
+          className={`nav-btn ${pathname === '/mystuff' ? 'active' : ''}`}
+          onClick={() => checkUnsaved(() => router.push('/mystuff'))}
         >
           <Star size={18} className="nav-icon" />
           <span className="nav-btn-label">My stuff</span>
@@ -108,36 +141,36 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* ── Collapsed History Icon ── */}
-      <div className="history-collapsed-btn" style={{ padding: '0 10px', marginTop: '4px' }}>
+      {/* ── Recent / History Link ── */}
+      <div style={{ padding: '0 10px', marginTop: '8px' }}>
         <button
           className={`nav-btn ${pathname === '/history' ? 'active' : ''}`}
-          onClick={() => router.push('/history')}
+          onClick={() => checkUnsaved(() => router.push('/history'))}
         >
           <Clock size={18} className="nav-icon" />
-          <span className="nav-tooltip">History</span>
+          <span className="nav-btn-label">Recent</span>
+          <span className="nav-tooltip">Recent History</span>
         </button>
       </div>
 
       {/* ── Scrollable nav area ── */}
-      <div className="sidebar-nav">
+      <div className="sidebar-nav" style={{ padding: '0 10px' }}>
         {/* Recent history */}
         {recents.length > 0 && (
-          <>
-            <div className="sidebar-section-label">Recent</div>
+          <div style={{ marginTop: '4px' }}>
             {recents.map((item, i) => (
               <button
                 key={i}
                 className="history-item-btn"
                 title={item.topic}
-                onClick={() => {
+                onClick={() => checkUnsaved(() => {
                   sessionStorage.setItem(
                     'preloaded_report',
                     JSON.stringify(item)
                   );
                   router.push('/');
                   setTimeout(() => window.dispatchEvent(new CustomEvent('loadReport')), 50);
-                }}
+                })}
               >
                 <span
                   style={{
@@ -154,7 +187,7 @@ export default function Sidebar() {
                 </span>
               </button>
             ))}
-          </>
+          </div>
         )}
       </div>
 
@@ -162,7 +195,7 @@ export default function Sidebar() {
       <div className="sidebar-bottom">
         <button
           className="nav-btn"
-          onClick={() => router.push('/settings')}
+          onClick={() => checkUnsaved(() => router.push('/settings'))}
         >
           <Settings size={18} className="nav-icon" />
           <span className="nav-btn-label">Settings</span>
@@ -170,7 +203,7 @@ export default function Sidebar() {
         </button>
         <button
           className="nav-btn"
-          onClick={() => router.push('/profile')}
+          onClick={() => checkUnsaved(() => router.push('/profile'))}
         >
           <User size={18} className="nav-icon" />
           <span className="nav-btn-label">Profile</span>

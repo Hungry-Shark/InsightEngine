@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Sparkles, Download } from 'lucide-react';
+import { Sparkles, Download, Plus, Mic, X, Send, Image as ImageIcon } from 'lucide-react';
 import { api, ResearchResult } from '@/lib/api';
 import BorderGlow from '@/components/BorderGlow';
 
@@ -21,6 +21,87 @@ export default function ChatPage() {
   const [thread, setThread] = useState<ResearchResult[]>([]);
   const [phase, setPhase] = useState(0); // 0=idle, 1=researching, 2=validating, 3=writing
   const [isTemporary, setIsTemporary] = useState(false);
+  const [savePromptId, setSavePromptId] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        
+        recognition.onresult = (event: any) => {
+          let finalTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
+            }
+          }
+          if (finalTranscript) {
+             setTopic(prev => prev + (prev.endsWith(' ') || prev.length === 0 ? '' : ' ') + finalTranscript);
+          }
+        };
+
+        recognition.onerror = () => setIsListening(false);
+        recognition.onend = () => setIsListening(false);
+        recognitionRef.current = recognition;
+      }
+    }
+  }, []);
+
+  const toggleListen = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+    } else {
+      recognitionRef.current?.start();
+      setIsListening(true);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) setAttachedFile(e.target.files[0]);
+  };
+
+  useEffect(() => {
+    const textarea = document.getElementById('chat-input') as HTMLTextAreaElement;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 150)}px`;
+    }
+  }, [topic]);
+
+  useEffect(() => {
+    if (isTemporary && thread.length > 0) {
+      sessionStorage.setItem('has_unsaved_temp', 'true');
+    } else {
+      sessionStorage.setItem('has_unsaved_temp', 'false');
+    }
+  }, [isTemporary, thread]);
+
+  useEffect(() => {
+    const handlePrompt = (e: any) => {
+      setSavePromptId(e.detail.id);
+    };
+    window.addEventListener('promptSave', handlePrompt);
+    return () => window.removeEventListener('promptSave', handlePrompt);
+  }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isTemporary && thread.length > 0) {
+        e.preventDefault();
+        e.returnValue = ''; // Native browser tab-close prompt
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isTemporary, thread]);
 
   // Load a preloaded report from sessionStorage
   const loadFromSession = useCallback(() => {
@@ -97,21 +178,37 @@ export default function ChatPage() {
   }, [loading]);
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+    if (e.preventDefault) e.preventDefault();
     if (!topic.trim()) return;
     setLoading(true);
     setError('');
+    
+    abortControllerRef.current = new AbortController();
+
     try {
-      const data = await api.research(topic.trim(), isTemporary);
+      const data = await api.research(topic.trim(), isTemporary, abortControllerRef.current.signal);
       // Append to thread instead of replacing
       setThread((prev) => [...prev, data]);
       setTopic('');
+      window.dispatchEvent(new CustomEvent('historyUpdated'));
       window.dispatchEvent(new CustomEvent('statusChange', { detail: 'green' }));
     } catch (err: unknown) {
+      if ((err as Error).name === 'AbortError') {
+        window.dispatchEvent(new CustomEvent('statusChange', { detail: 'yellow' }));
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Something went wrong');
       window.dispatchEvent(new CustomEvent('statusChange', { detail: 'red' }));
     } finally {
+      abortControllerRef.current = null;
       setLoading(false);
+    }
+  }
+
+  function handleStop() {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
   }
 
@@ -167,7 +264,16 @@ export default function ChatPage() {
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      }).from(container).save();
+      }).from(container).save().then(() => {
+        api.addToMyStuff({
+          id: Date.now().toString(),
+          type: 'pdf',
+          title: `${result.topic.slice(0, 30)} Report`,
+          source_topic: result.topic,
+          content: result.report,
+          ts: new Date().toISOString()
+        }).catch(console.error);
+      });
     });
   }
 
@@ -237,25 +343,27 @@ export default function ChatPage() {
             <p className="card-title" style={{ marginBottom: 14 }}>
               Raw Research Data
             </p>
-            <table className="raw-table">
-              <thead>
-                <tr>
-                  <th>Agent</th>
-                  <th>Output Preview</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style={{ color: 'var(--accent)', whiteSpace: 'nowrap' }}>
-                    Lead Researcher
-                  </td>
-                  <td>
-                    {result.raw_data.slice(0, 300)}
-                    {result.raw_data.length > 300 ? '…' : ''}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <div style={{ overflowX: 'auto', paddingBottom: '8px' }}>
+              <table className="raw-table">
+                <thead>
+                  <tr>
+                    <th>Agent</th>
+                    <th>Output Preview</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={{ color: 'var(--accent)', whiteSpace: 'nowrap' }}>
+                      Lead Researcher
+                    </td>
+                    <td>
+                      {result.raw_data.slice(0, 300)}
+                      {result.raw_data.length > 300 ? '…' : ''}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Report */}
@@ -281,44 +389,163 @@ export default function ChatPage() {
         </div>
       ))}
 
-      {/* Research Form — always visible at the bottom */}
-      <BorderGlow className="mb-6">
-        <div className="glass-card" style={{ padding: '32px', marginBottom: 0 }}>
-          <form className="research-form" onSubmit={handleSubmit}>
-            <textarea
-              className="research-input"
-              placeholder={thread.length > 0 
-                ? "Ask a follow-up question or research a new topic..." 
-                : "Describe your research topic, question, or key themes in detail..."}
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              rows={4}
-              disabled={loading}
-              style={{ 
-                background: 'rgba(0,0,0,0.2)', 
-                borderColor: 'rgba(255,255,255,0.05)',
-                borderRadius: '12px'
-              }}
-            />
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={loading || !topic.trim()}
-            >
-              <Sparkles size={16} />
-              {loading ? 'Researching…' : thread.length > 0 ? 'Continue Research' : 'Generate Report'}
-            </button>
-          </form>
-        </div>
-      </BorderGlow>
+      {/* Research Form — Gemini Style Input */}
+      <div style={{ position: 'sticky', bottom: '32px', zIndex: 10, marginTop: 'auto', paddingTop: '24px' }}>
+        <style>{`
+          .gemini-input-wrapper {
+            background: rgba(30, 31, 32, 0.85);
+            backdrop-filter: blur(24px);
+            border-radius: 32px;
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 12px 16px 12px 24px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            transition: border-color 0.2s ease;
+          }
+          .gemini-input-wrapper:focus-within {
+            border-color: rgba(255,255,255,0.2);
+          }
+          .icon-btn-hover:hover {
+            background: rgba(255,255,255,0.08) !important;
+          }
+          .send-btn-active:hover {
+            opacity: 0.9;
+            transform: scale(1.02);
+          }
+        `}</style>
+        <form className="gemini-input-wrapper" onSubmit={handleSubmit}>
+          {attachedFile && (
+            <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '6px 12px', borderRadius: '16px', width: 'fit-content', marginBottom: '8px', gap: '8px' }}>
+              <ImageIcon size={14} color="#a78bfa" />
+              <span style={{ fontSize: '13px', color: '#e2e8f0', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{attachedFile.name}</span>
+              <button type="button" onClick={() => setAttachedFile(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 0, display: 'flex' }}>
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
+          <textarea
+            id="chat-input"
+            className="research-input custom-scrollbar"
+            placeholder={thread.length > 0 ? "Ask a follow-up question..." : "Ask InsightEngine..."}
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (topic.trim() && !loading) handleSubmit(e as any);
+              }
+            }}
+            rows={1}
+            disabled={loading}
+            style={{ 
+              background: 'transparent', 
+              border: 'none',
+              outline: 'none',
+              color: 'white',
+              fontSize: '16px',
+              resize: 'none',
+              width: '100%',
+              padding: '0',
+              fontFamily: 'inherit',
+              lineHeight: '1.5',
+              minHeight: '24px',
+              maxHeight: '150px'
+            }}
+          />
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <label style={{ 
+                cursor: 'pointer', 
+                padding: '8px', 
+                borderRadius: '50%', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                transition: 'background 0.2s',
+              }} className="icon-btn-hover">
+                <Plus size={20} color="#e2e8f0" />
+                <input type="file" style={{ display: 'none' }} onChange={handleFileChange} />
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button 
+                type="button" 
+                onClick={toggleListen}
+                style={{ 
+                  cursor: 'pointer', 
+                  padding: '8px', 
+                  borderRadius: '50%', 
+                  background: isListening ? 'rgba(239, 68, 68, 0.2)' : 'transparent', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  border: 'none',
+                  transition: 'background 0.2s'
+                }}
+                className={isListening ? "" : "icon-btn-hover"}
+              >
+                <Mic size={20} color={isListening ? "#ef4444" : "#e2e8f0"} />
+              </button>
+
+              {loading ? (
+                <button
+                  type="button"
+                  onClick={handleStop}
+                  style={{ 
+                    cursor: 'pointer', 
+                    padding: '10px', 
+                    borderRadius: '50%', 
+                    background: 'transparent', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    transition: 'all 0.2s',
+                    width: '36px',
+                    height: '36px'
+                  }}
+                  className="icon-btn-hover"
+                  title="Stop generating"
+                >
+                  <div style={{ width: '12px', height: '12px', backgroundColor: '#e2e8f0', borderRadius: '2px' }} />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={!topic.trim()}
+                  style={{ 
+                    cursor: (!topic.trim()) ? 'not-allowed' : 'pointer', 
+                    padding: (!topic.trim()) ? '8px' : '10px', 
+                    borderRadius: '50%', 
+                    background: (!topic.trim()) ? 'transparent' : 'white', 
+                    color: (!topic.trim()) ? 'rgba(255,255,255,0.3)' : 'black',
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    border: 'none',
+                    transition: 'all 0.2s'
+                  }}
+                  className={(!topic.trim()) ? "" : "send-btn-active"}
+                >
+                  <Send size={18} style={{ transform: 'translateX(-1px)' }} />
+                </button>
+              )}
+            </div>
+          </div>
+        </form>
+      </div>
 
       {/* Error */}
-      {error && <div className="alert alert-error">⚠ {error}</div>}
+      {error && <div className="alert alert-error" style={{ marginTop: '24px', marginBottom: '24px' }}>⚠ {error}</div>}
 
       {/* Loader */}
       {loading && (
-        <div className="glass-card">
-          <div className="spinner-wrap">
+        <div className="glass-card" style={{ marginTop: '24px', marginBottom: '32px', animation: 'cardFadeIn 0.4s ease' }}>
+          <div className="spinner-wrap" style={{ padding: '32px 0' }}>
             <div className="spinner-orbital" />
             <p className="spinner-text">
               InsightEngine is working on your research…
@@ -337,6 +564,57 @@ export default function ChatPage() {
                   </span>
                 </span>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Save Prompt Modal for Temporary Chats */}
+      {savePromptId && (
+        <div className="confirm-overlay" onClick={() => {
+            window.dispatchEvent(new CustomEvent('navResolved', { detail: { id: savePromptId, proceed: false } }));
+            setSavePromptId(null);
+        }}>
+          <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <p className="confirm-title">Unsaved Temporary Chat</p>
+            <p className="confirm-message">You have a temporary chat that will be lost. Would you like to save it?</p>
+            <div className="confirm-actions" style={{ flexDirection: 'column', gap: '8px' }}>
+              <button 
+                className="btn-primary" 
+                onClick={async () => {
+                  try {
+                    for (const t of thread) { 
+                      await api.saveHistory({ ...t, ts: new Date().toISOString() }); 
+                    }
+                    setIsTemporary(false);
+                    sessionStorage.setItem('has_unsaved_temp', 'false');
+                    window.dispatchEvent(new CustomEvent('navResolved', { detail: { id: savePromptId, proceed: true } }));
+                    setSavePromptId(null);
+                  } catch (e) {
+                    console.error('Failed to save', e);
+                  }
+                }}
+              >
+                Save & Continue
+              </button>
+              <button 
+                className="btn-danger" 
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('navResolved', { detail: { id: savePromptId, proceed: true } }));
+                  setSavePromptId(null);
+                }}
+              >
+                Discard
+              </button>
+              <button 
+                className="btn-secondary" 
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('navResolved', { detail: { id: savePromptId, proceed: false } }));
+                  setSavePromptId(null);
+                }}
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>

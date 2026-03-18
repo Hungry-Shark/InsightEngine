@@ -34,15 +34,15 @@ export default function NotificationToast() {
   if (!show) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
-      <div className="misty-border-group relative p-[1.5px] rounded-xl overflow-hidden cursor-pointer">
+    <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 50 }} className="toast-animate">
+      <div className="misty-border-group" style={{ position: 'relative', padding: '1.5px', borderRadius: '12px', overflow: 'hidden', cursor: 'pointer' }}>
         {/* Animated Mist Border (Conic gradient) */}
-        <div className="misty-border-glow absolute inset-0 rounded-xl" />
+        <div className="misty-border-glow" style={{ position: 'absolute', inset: 0, borderRadius: '12px' }} />
         
         {/* Inner Card representing ShadCN alert/toast */}
-        <div className="relative bg-[hsl(240,10%,3.9%)] border border-white/5 text-white px-5 py-4 rounded-xl flex items-center gap-3 backdrop-blur-xl shadow-lg z-10 transition-colors hover:bg-[hsl(240,5%,10%)]">
-          <div className="flex-1">
-            <p className="text-sm font-medium tracking-tight" style={{ fontFamily: 'Inter, sans-serif' }}>
+        <div style={{ position: 'relative', background: 'hsl(240,10%,3.9%)', border: '1px solid rgba(255,255,255,0.05)', color: 'white', padding: '16px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px', backdropFilter: 'blur(24px)', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.5)', zIndex: 10 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: '14px', fontWeight: 500, letterSpacing: '-0.025em', fontFamily: 'Inter, sans-serif', margin: 0 }}>
               {message}
             </p>
           </div>
@@ -62,8 +62,8 @@ export default function NotificationToast() {
           from { transform: rotate(0deg) scale(1.5); }
           to { transform: rotate(360deg) scale(1.5); }
         }
-        .animate-in {
-          animation: slide-up 0.3s ease-out forwards;
+        .toast-animate {
+          animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
         @keyframes slide-up {
           from { opacity: 0; transform: translateY(20px); }

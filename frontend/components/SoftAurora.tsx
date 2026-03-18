@@ -177,6 +177,17 @@ export default function SoftAurora({
   mouseInfluence = 0.25
 }: SoftAuroraProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const targetColorsRef = useRef({
+    c1: hexToVec3(color1),
+    c2: hexToVec3(color2)
+  });
+
+  useEffect(() => {
+    targetColorsRef.current = {
+      c1: hexToVec3(color1),
+      c2: hexToVec3(color2)
+    };
+  }, [color1, color2]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -220,8 +231,9 @@ export default function SoftAurora({
         uSpeed: { value: speed },
         uScale: { value: scale },
         uBrightness: { value: brightness },
-        uColor1: { value: hexToVec3(color1) },
-        uColor2: { value: hexToVec3(color2) },
+        // Setup initial uniform values; they will be interpolated in update loop
+        uColor1: { value: new Float32Array(targetColorsRef.current.c1) },
+        uColor2: { value: new Float32Array(targetColorsRef.current.c2) },
         uNoiseFreq: { value: noiseFrequency },
         uNoiseAmp: { value: noiseAmplitude },
         uBandHeight: { value: bandHeight },
@@ -259,6 +271,21 @@ export default function SoftAurora({
         program.uniforms.uMouse.value[1] = 0.5;
       }
 
+      // Smooth color transition
+      const t1 = targetColorsRef.current.c1;
+      const t2 = targetColorsRef.current.c2;
+      const c1 = program.uniforms.uColor1.value;
+      const c2 = program.uniforms.uColor2.value;
+      
+      const lerpSpeed = 0.05; // Quick curve
+      c1[0] += (t1[0] - c1[0]) * lerpSpeed;
+      c1[1] += (t1[1] - c1[1]) * lerpSpeed;
+      c1[2] += (t1[2] - c1[2]) * lerpSpeed;
+      
+      c2[0] += (t2[0] - c2[0]) * lerpSpeed;
+      c2[1] += (t2[1] - c2[1]) * lerpSpeed;
+      c2[2] += (t2[2] - c2[2]) * lerpSpeed;
+
       renderer.render({ scene: mesh });
     }
     animationFrameId = requestAnimationFrame(update);
@@ -273,7 +300,7 @@ export default function SoftAurora({
       container.removeChild(gl.canvas);
       gl.getExtension('WEBGL_lose_context')?.loseContext();
     };
-  }, [speed, scale, brightness, color1, color2, noiseFrequency, noiseAmplitude, bandHeight, bandSpread, octaveDecay, layerOffset, colorSpeed, enableMouseInteraction, mouseInfluence]);
+  }, [speed, scale, brightness, noiseFrequency, noiseAmplitude, bandHeight, bandSpread, octaveDecay, layerOffset, colorSpeed, enableMouseInteraction, mouseInfluence]);
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
 }

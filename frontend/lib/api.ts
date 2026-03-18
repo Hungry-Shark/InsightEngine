@@ -7,6 +7,15 @@ export interface HistoryEntry {
   ts: string;
 }
 
+export interface MyStuffItem {
+  id: string;
+  type: 'pdf' | 'image' | 'file';
+  title: string;
+  source_topic: string;
+  content: string;
+  ts: string;
+}
+
 export interface Profile {
   name: string;
   email: string;
@@ -46,15 +55,22 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   status: () => req<ApiStatus>('/api/status'),
 
-  research: (topic: string, temporary: boolean = false) =>
+  research: (topic: string, temporary: boolean = false, signal?: AbortSignal) =>
     req<ResearchResult>('/api/research', {
       method: 'POST',
       body: JSON.stringify({ topic, temporary }),
+      signal
     }),
 
   getHistory: () => req<{ history: HistoryEntry[] }>('/api/history'),
   deleteHistory: (index: number) => req<{ ok: boolean }>(`/api/history/${index}`, { method: 'DELETE' }),
   clearHistory: () => req<{ ok: boolean }>('/api/history', { method: 'DELETE' }),
+
+  getMyStuff: () => req<{ items: MyStuffItem[] }>('/api/mystuff'),
+  addToMyStuff: (data: MyStuffItem) =>
+    req<{ ok: boolean }>('/api/mystuff', { method: 'POST', body: JSON.stringify(data) }),
+  deleteMyStuff: (id: string) => req<{ ok: boolean }>(`/api/mystuff/${id}`, { method: 'DELETE' }),
+  saveHistory: (data: HistoryEntry) => req<{ ok: boolean }>('/api/history/save', { method: 'POST', body: JSON.stringify(data) }),
 
   getProfile: () => req<Profile>('/api/profile'),
   updateProfile: (data: Profile) =>

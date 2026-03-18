@@ -21,7 +21,7 @@ app = FastAPI(title="InsightEngine API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["*"], # Allow all origins dynamically (easier for Render to Vercel communication)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,7 +31,18 @@ app.add_middleware(
 db = None
 USER_ID = "default_user"
 try:
-    if os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or os.path.exists("firebase_credentials.json"):
+    if os.environ.get("FIREBASE_CREDENTIALS_BASE64"):
+        import base64
+        import json
+        # Decode base64 credentials injected by Render environment variables
+        decoded_creds = base64.b64decode(os.environ["FIREBASE_CREDENTIALS_BASE64"]).decode('utf-8')
+        cred_dict = json.loads(decoded_creds)
+        cred = credentials.Certificate(cred_dict)
+        if not firebase_admin._apps:
+            firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        print("Firebase initialized successfully from environment variable.")
+    elif os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or os.path.exists("firebase_credentials.json"):
         if os.path.exists("firebase_credentials.json"):
             cred = credentials.Certificate("firebase_credentials.json")
             if not firebase_admin._apps:
@@ -49,6 +60,7 @@ except Exception as e:
 # ── In-memory state (mirrors Streamlit session_state) ──────────────
 _state = {
     "chat_history": [],
+    "my_stuff": [],
     "profile": {
         "name": "User",
         "email": "",
@@ -65,6 +77,13 @@ _state = {
 class ResearchRequest(BaseModel):
     topic: str
     temporary: bool = False
+
+class SaveHistoryRequest(BaseModel):
+    topic: str
+    report: str
+    raw_data: str
+    ts: str
+    provider: Optional[str] = "gemini"
 
 class ProfileUpdate(BaseModel):
     name: str
@@ -233,6 +252,59 @@ def clear_history():
     _state["chat_history"] = []
     return {"ok": True}
 
+@app.post("/api/history/save")
+def save_history(req: SaveHistoryRequest):
+    entry = req.dict()
+    if db:
+        entry["created_at"] = firestore.SERVER_TIMESTAMP
+        db.collection("users").document(USER_ID).collection("history").add(entry)
+        entry.pop("created_at", None)
+    else:
+        _state["chat_history"].append(entry)
+    return {"ok": True}
+
+# ── My Stuff ─────────────────────────────────────────────────────────
+
+class MyStuffItem(BaseModel):
+    id: str
+    type: str
+    title: str
+    source_topic: str
+    content: str
+    ts: str
+
+@app.get("/api/mystuff")
+def get_mystuff():
+    if db:
+        docs = db.collection("users").document(USER_ID).collection("mystuff").order_by("created_at", direction=firestore.Query.DESCENDING).stream()
+        items = [doc.to_dict() for doc in docs]
+        for it in items:
+            it.pop("created_at", None)
+        return {"items": items}
+    return {"items": _state.get("my_stuff", [])}
+
+@app.post("/api/mystuff")
+def add_mystuff(item: MyStuffItem):
+    entry = item.model_dump()
+    if db:
+        entry["created_at"] = firestore.SERVER_TIMESTAMP
+        db.collection("users").document(USER_ID).collection("mystuff").document(item.id).set(entry)
+        entry.pop("created_at", None)
+    else:
+        if "my_stuff" not in _state:
+            _state["my_stuff"] = []
+        if not any(existing.get("id") == item.id for existing in _state["my_stuff"]):
+            _state["my_stuff"].insert(0, entry)
+    return {"ok": True}
+
+@app.delete("/api/mystuff/{item_id}")
+def delete_mystuff(item_id: str):
+    if db:
+        db.collection("users").document(USER_ID).collection("mystuff").document(item_id).delete()
+    else:
+        if "my_stuff" in _state:
+            _state["my_stuff"] = [it for it in _state["my_stuff"] if it.get("id") != item_id]
+    return {"ok": True}
 
 # ── Profile ──────────────────────────────────────────────────────────
 @app.get("/api/profile")

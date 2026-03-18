@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Trash2,
   Download,
@@ -23,7 +23,7 @@ export default function HistoryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const router = useRouter();
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       const data = await api.getHistory();
       setHistory([...data.history].reverse());
@@ -32,11 +32,13 @@ export default function HistoryPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     load();
-  }, []);
+    window.addEventListener('historyUpdated', load);
+    return () => window.removeEventListener('historyUpdated', load);
+  }, [load]);
 
   async function remove(reversedIndex: number) {
     const realIndex = history.length - 1 - reversedIndex;

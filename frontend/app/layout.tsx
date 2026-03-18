@@ -44,6 +44,8 @@ import BackgroundManager from "@/components/BackgroundManager";
 import NotificationToast from "@/components/NotificationToast";
 import GearLogo from "@/components/GearLogo";
 import ClickSpark from "@/components/ClickSpark";
+import AuthAvatar from "@/components/AuthAvatar";
+import MobileMenuToggle from "@/components/MobileMenuToggle";
 
 export default function RootLayout({
   children,
@@ -68,8 +70,12 @@ export default function RootLayout({
             duration={500}
           >
             <div className="main-wrapper">
-              <header style={{ width: '100%', padding: '40px 48px 8px 48px', position: 'relative', zIndex: 20 }}>
-                <GearLogo />
+              <header className="main-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '30px 48px 10px 48px', position: 'relative', zIndex: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <MobileMenuToggle />
+                  <GearLogo />
+                </div>
+                <AuthAvatar />
               </header>
               <main className="main-content">{children}</main>
               <Footer status="green" />

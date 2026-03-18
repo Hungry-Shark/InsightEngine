@@ -58,7 +58,7 @@ export default function ProfilePage() {
       )}
 
       {/* 2-Column Layout: Reflective Card and User Info */}
-      <div style={{ display: 'flex', gap: '48px', alignItems: 'flex-start', flexWrap: 'wrap', paddingLeft: '40px' }}>
+      <div className="profile-layout">
         
         {/* Column 1: Reflective Card (Left) */}
         <div style={{ flexShrink: 0, width: '100%', maxWidth: '380px' }}>
