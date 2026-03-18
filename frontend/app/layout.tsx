@@ -33,7 +33,9 @@ export const metadata: Metadata = {
     "AI-powered deep research & report generation. Get comprehensive, verified reports on any topic in minutes.",
   keywords: ["AI research", "report generation", "InsightEngine", "deep research"],
   icons: {
-    icon: '/favicon.gif',
+    icon: [
+      { url: '/favicon.gif?v=2', type: 'image/gif' }
+    ],
   },
 };
 
@@ -41,6 +43,7 @@ import Footer from "@/components/Footer";
 import BackgroundManager from "@/components/BackgroundManager";
 import NotificationToast from "@/components/NotificationToast";
 import GearLogo from "@/components/GearLogo";
+import ClickSpark from "@/components/ClickSpark";
 
 export default function RootLayout({
   children,
@@ -57,14 +60,22 @@ export default function RootLayout({
         {/* App shell */}
         <div className="app-shell frosted-glass">
           <Sidebar />
-          <div className="main-wrapper">
-            <header style={{ width: '100%', padding: '40px 48px 8px 48px', position: 'relative', zIndex: 20 }}>
-              <GearLogo />
-            </header>
-            <main className="main-content">{children}</main>
-            <Footer status="green" />
-            <NotificationToast />
-          </div>
+          <ClickSpark
+            sparkColor="#ffffff"
+            sparkSize={4}
+            sparkRadius={30}
+            sparkCount={12}
+            duration={500}
+          >
+            <div className="main-wrapper">
+              <header style={{ width: '100%', padding: '40px 48px 8px 48px', position: 'relative', zIndex: 20 }}>
+                <GearLogo />
+              </header>
+              <main className="main-content">{children}</main>
+              <Footer status="green" />
+              <NotificationToast />
+            </div>
+          </ClickSpark>
         </div>
       </body>
     </html>

@@ -15,8 +15,8 @@ interface ClickSparkProps {
 
 export default function ClickSpark({
   sparkColor = '#fff',
-  sparkSize = 10,
-  sparkRadius = 15,
+  sparkSize = 4,
+  sparkRadius = 25,
   sparkCount = 8,
   duration = 400,
   easing = 'ease-out',
@@ -115,7 +115,7 @@ export default function ClickSpark({
   }, [sparkCount, draw]);
 
   return (
-    <div style={{ position: 'relative', display: 'inline-block', cursor: 'inherit' }} onClick={handleClick}>
+    <div style={{ position: 'relative', display: 'block', width: '100%', height: '100%', cursor: 'inherit' }} onClick={handleClick}>
       {children}
       <canvas
         ref={canvasRef}

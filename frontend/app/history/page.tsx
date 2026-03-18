@@ -112,8 +112,8 @@ export default function HistoryPage() {
               placeholder="Search conversations..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="research-input"
-              style={{ paddingLeft: '48px', height: '52px', fontSize: '15px' }}
+              className="history-search-input"
+              style={{ paddingLeft: '48px', height: '52px', fontSize: '15px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: '8px', outline: 'none', width: '100%' }}
             />
           </div>
 

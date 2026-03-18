@@ -64,6 +64,7 @@ _state = {
 # ── Pydantic models ────────────────────────────────────────────────
 class ResearchRequest(BaseModel):
     topic: str
+    temporary: bool = False
 
 class ProfileUpdate(BaseModel):
     name: str
@@ -154,12 +155,13 @@ def run_research(req: ResearchRequest):
                 "ts": datetime.datetime.now().strftime("%b %d, %H:%M"),
                 "provider": active_provider,
             }
-            if db:
-                entry["created_at"] = firestore.SERVER_TIMESTAMP
-                db.collection("users").document(USER_ID).collection("history").add(entry)
-                entry.pop("created_at")
-            else:
-                _state["chat_history"].append(entry)
+            if not req.temporary:
+                if db:
+                    entry["created_at"] = firestore.SERVER_TIMESTAMP
+                    db.collection("users").document(USER_ID).collection("history").add(entry)
+                    entry.pop("created_at")
+                else:
+                    _state["chat_history"].append(entry)
 
             return {
                 "report": result.raw,

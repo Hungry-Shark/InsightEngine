@@ -46,10 +46,10 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   status: () => req<ApiStatus>('/api/status'),
 
-  research: (topic: string) =>
+  research: (topic: string, temporary: boolean = false) =>
     req<ResearchResult>('/api/research', {
       method: 'POST',
-      body: JSON.stringify({ topic }),
+      body: JSON.stringify({ topic, temporary }),
     }),
 
   getHistory: () => req<{ history: HistoryEntry[] }>('/api/history'),

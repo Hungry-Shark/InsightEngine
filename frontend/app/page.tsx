@@ -20,6 +20,7 @@ export default function ChatPage() {
   const [error, setError] = useState('');
   const [thread, setThread] = useState<ResearchResult[]>([]);
   const [phase, setPhase] = useState(0); // 0=idle, 1=researching, 2=validating, 3=writing
+  const [isTemporary, setIsTemporary] = useState(false);
 
   // Load a preloaded report from sessionStorage
   const loadFromSession = useCallback(() => {
@@ -58,13 +59,24 @@ export default function ChatPage() {
       setTopic('');
       setError('');
       setLoading(false);
+      setIsTemporary(false);
+    };
+
+    const handleTempChat = () => {
+      setThread([]);
+      setTopic('');
+      setError('');
+      setLoading(false);
+      setIsTemporary(true);
     };
 
     window.addEventListener('loadReport', handleLoadReport);
     window.addEventListener('newChat', handleNewChat);
+    window.addEventListener('tempChat', handleTempChat);
     return () => {
       window.removeEventListener('loadReport', handleLoadReport);
       window.removeEventListener('newChat', handleNewChat);
+      window.removeEventListener('tempChat', handleTempChat);
     };
   }, [loadFromSession]);
 
@@ -90,7 +102,7 @@ export default function ChatPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await api.research(topic.trim());
+      const data = await api.research(topic.trim(), isTemporary);
       // Append to thread instead of replacing
       setThread((prev) => [...prev, data]);
       setTopic('');

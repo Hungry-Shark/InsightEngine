@@ -7,7 +7,10 @@ import {
   Settings,
   User,
   Star,
-  MessageSquareDashed
+  MessageSquareDashed,
+  Clock,
+  Menu,
+  X
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, HistoryEntry } from '@/lib/api';
@@ -46,11 +49,9 @@ export default function Sidebar() {
           onClick={() => setCollapsed((c) => !c)}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <line className="hamburger-line hamburger-top" x1="3" y1="6" x2="21" y2="6" />
-            <line className="hamburger-line hamburger-mid" x1="3" y1="12" x2="21" y2="12" />
-            <line className="hamburger-line hamburger-bot" x1="3" y1="18" x2="21" y2="18" />
-          </svg>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.3s ease' }}>
+            {collapsed ? <Menu size={20} /> : <X size={20} />}
+          </div>
         </button>
         {!collapsed && (
           <button
@@ -98,12 +99,23 @@ export default function Sidebar() {
       {/* ── My stuff ── */}
       <div style={{ padding: '0 10px', marginTop: '8px' }}>
         <button
-          className={`nav-btn ${pathname === '/history' ? 'active' : ''}`}
-          onClick={() => router.push('/history')}
+          className="nav-btn"
+          onClick={() => {}}
         >
           <Star size={18} className="nav-icon" />
           <span className="nav-btn-label">My stuff</span>
           <span className="nav-tooltip">My stuff</span>
+        </button>
+      </div>
+
+      {/* ── Collapsed History Icon ── */}
+      <div className="history-collapsed-btn" style={{ padding: '0 10px', marginTop: '4px' }}>
+        <button
+          className={`nav-btn ${pathname === '/history' ? 'active' : ''}`}
+          onClick={() => router.push('/history')}
+        >
+          <Clock size={18} className="nav-icon" />
+          <span className="nav-tooltip">History</span>
         </button>
       </div>
 

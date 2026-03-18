@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Save } from 'lucide-react';
+import { Save, Camera } from 'lucide-react';
 import { api, Profile } from '@/lib/api';
 import ReflectiveCard from '@/components/ReflectiveCard';
 
@@ -10,10 +10,10 @@ export default function ProfilePage() {
   const [status, setStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [apiStatus, setApiStatus] = useState({ google_api: false, tavily_api: false });
   const [reportCount, setReportCount] = useState(0);
+  const [imageSrc, setImageSrc] = useState("https://plus.unsplash.com/premium_photo-1689539137236-b68e436248de?q=80&w=800&auto=format&fit=crop");
 
   useEffect(() => {
     api.getProfile().then((d) => {
-      // Pre-fill defaults if completely empty
       setForm({
         name: d.name || 'Alexander Doe',
         email: d.email || '',
@@ -35,24 +35,35 @@ export default function ProfilePage() {
     setTimeout(() => setStatus(null), 3000);
   }
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImageSrc(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <div className="page-inner">
       <h1 className="section-header">Profile</h1>
       <p className="section-sub">
-        Secure Access Portal
+        User Access Dashboard
       </p>
 
       {status && (
         <div className={`alert alert-${status.type}`}>{status.msg}</div>
       )}
 
-      {/* Two Column Layout */}
-      <div style={{ display: 'flex', gap: '48px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+      {/* 2-Column Layout: Reflective Card and User Info */}
+      <div style={{ display: 'flex', gap: '48px', alignItems: 'flex-start', flexWrap: 'wrap', paddingLeft: '40px' }}>
         
-        {/* Left Side: Reflective Card */}
-        <div style={{ flexShrink: 0, width: '100%', maxWidth: '400px' }}>
+        {/* Column 1: Reflective Card (Left) */}
+        <div style={{ flexShrink: 0, width: '100%', maxWidth: '380px' }}>
           <ReflectiveCard
-            imageSrc="https://plus.unsplash.com/premium_photo-1689539137236-b68e436248de?q=80&w=800&auto=format&fit=crop"
+            imageSrc={imageSrc}
             userName={form.name.toUpperCase()}
             userRole={form.bio ? form.bio.toUpperCase() : 'USER'}
             overlayColor="rgba(0, 0, 0, 0)"
@@ -68,12 +79,10 @@ export default function ProfilePage() {
           />
         </div>
 
-        {/* Right Side: Profile Info & Status */}
-        <div style={{ flex: 1, minWidth: '320px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
-          {/* Personal Info */}
+        {/* Column 2: User Info (Right) */}
+        <div style={{ flex: 1, minWidth: '320px', maxWidth: '500px' }}>
           <div className="glass-card">
-            <p className="card-title">Clearance Details</p>
+            <p className="card-title">User Info</p>
             <form onSubmit={save}>
               <div className="form-group">
                 <label className="form-label">Full Name</label>
@@ -102,76 +111,28 @@ export default function ProfilePage() {
                   onChange={(e) => setForm({ ...form, bio: e.target.value })}
                 />
               </div>
+              
+              <div className="form-group">
+                <label className="form-label">Profile Image</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <label className="btn-secondary" style={{ cursor: 'pointer', flex: 1, justifyContent: 'center', gap: '8px' }}>
+                    <Camera size={14} />
+                    <input type="file" hidden accept="image/*" onChange={handleImageChange} />
+                    Update Photo
+                  </label>
+                </div>
+              </div>
+
               <button
                 type="submit"
                 className="btn-primary"
-                style={{ alignSelf: 'flex-start' }}
+                style={{ width: '100%', marginTop: '12px' }}
               >
                 <Save size={14} />
-                Update Clearance
+                Save User Info
               </button>
             </form>
           </div>
-
-          {/* API Key Status */}
-          <div className="glass-card">
-            <p className="card-title">Backend Link Status</p>
-            <div className="api-status-row">
-              <span
-                className={`api-dot ${apiStatus.google_api ? 'connected' : 'disconnected'}`}
-              />
-              <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-                Google Gemini
-              </span>
-              <span
-                className={`badge ${apiStatus.google_api ? 'badge-green' : 'badge-red'}`}
-                style={{ marginLeft: 'auto' }}
-              >
-                {apiStatus.google_api ? 'Connected' : 'Missing'}
-              </span>
-            </div>
-            <div className="api-status-row">
-              <span
-                className={`api-dot ${apiStatus.tavily_api ? 'connected' : 'disconnected'}`}
-              />
-              <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-                Tavily Search
-              </span>
-              <span
-                className={`badge ${apiStatus.tavily_api ? 'badge-green' : 'badge-red'}`}
-                style={{ marginLeft: 'auto' }}
-              >
-                {apiStatus.tavily_api ? 'Connected' : 'Missing'}
-              </span>
-            </div>
-            <p
-              style={{
-                fontSize: 12,
-                color: 'var(--text-muted)',
-                marginTop: 12,
-              }}
-            >
-              Linkage managed externally via process environment.
-            </p>
-          </div>
-
-          {/* Session Stats */}
-          <div className="glass-card">
-            <p className="card-title">Session Telemetry</p>
-            <div className="stats-row">
-              <div className="stat-tile">
-                <div className="stat-value">{reportCount}</div>
-                <div className="stat-label">Reports Generated</div>
-              </div>
-              <div className="stat-tile">
-                <div className="stat-value" style={{ color: 'var(--accent)' }}>
-                  Active
-                </div>
-                <div className="stat-label">Session Status</div>
-              </div>
-            </div>
-          </div>
-
         </div>
       </div>
     </div>
