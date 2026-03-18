@@ -27,6 +27,49 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Keep-Alive Background Task ──────────────
+import threading
+import time
+import urllib.request
+import urllib.error
+
+def keep_alive_loop():
+    url = os.environ.get("RENDER_EXTERNAL_URL") or os.environ.get("KEEP_ALIVE_URL")
+    if not url:
+        print("Keep-alive loop bypassed: RENDER_EXTERNAL_URL not set.")
+        return
+    if not url.endswith("/api/status"):
+        url = url.rstrip("/") + "/api/status"
+
+    print(f"Keep-alive loop initialized. Will ping {url} every 14 minutes.")
+    while True:
+        time.sleep(14 * 60)  # Sleep for 14 minutes
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'KeepAlive/1.0'})
+            urllib.request.urlopen(req, timeout=10)
+            print(f"Keep-alive ping sent to {url}")
+        except Exception as e:
+            print(f"Keep-alive ping failed: {e}")
+
+@app.on_event("startup")
+def start_keep_alive():
+    threading.Thread(target=keep_alive_loop, daemon=True).start()
+
+import traceback
+from fastapi import Request
+from fastapi.responses import JSONResponse
+import logging
+
+logger = logging.getLogger(__name__)
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled Exception on {request.url.path}: {exc}\n{traceback.format_exc()}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An unexpected server error occurred. Our engineers have been notified."},
+    )
+
 # ── Firestore Initialization ──────────────
 db = None
 USER_ID = "default_user"
@@ -201,15 +244,17 @@ def run_research(req: ResearchRequest):
                 )
                 continue
             elif is_rate_limit:
+                logger.error(f"All LLM providers exhausted. Final rate limit error: {str(e)}")
                 raise HTTPException(
                     status_code=429,
-                    detail=(
-                        f"All LLM providers exhausted. Last error: {str(e)[:200]}. "
-                        f"Please wait for quota reset or check your API dashboard."
-                    )
+                    detail="An issue has occurred on our end, we are facing unusually high traffic. Please try again in a few moments."
                 )
             else:
-                raise HTTPException(status_code=500, detail=str(e))
+                logger.error(f"Internal error with provider {provider}: {str(e)}")
+                raise HTTPException(
+                    status_code=500, 
+                    detail="An unexpected issue has occurred on our end. We will be right back!"
+                )
 
 
 
@@ -382,4 +427,5 @@ def export_pdf(index: int):
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF export failed: {e}")
+        logger.error(f"PDF export failed: {e}")
+        raise HTTPException(status_code=500, detail="PDF export failed due to an internal error.")
