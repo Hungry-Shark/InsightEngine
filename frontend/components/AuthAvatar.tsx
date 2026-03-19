@@ -55,14 +55,16 @@ export default function AuthAvatar() {
   return (
     <div className="auth-avatar-container">
       {user ? (
-        <div style={{ position: 'relative' }}>
-          <button 
-            onClick={() => setDropdownOpen(!dropdownOpen)} 
+        <>
+          <span className="auth-pro-badge">PRO</span>
+          <div style={{ position: 'relative' }}>
+            <button 
+              onClick={() => setDropdownOpen(!dropdownOpen)} 
             className={`auth-profile-btn ${dropdownOpen ? 'active' : ''}`}
             title="User Profile"
           >
             {user.photoURL ? (
-              <img src={user.photoURL} alt="User Avatar" className="auth-avatar-img" />
+              <img src={user.photoURL} alt="U" className="auth-avatar-img" referrerPolicy="no-referrer" />
             ) : (
               <div className="auth-avatar-fallback">
                 {user.displayName?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U'}
@@ -83,6 +85,7 @@ export default function AuthAvatar() {
             </div>
           )}
         </div>
+        </>
       ) : (
         <button
           onClick={handleSignIn}
