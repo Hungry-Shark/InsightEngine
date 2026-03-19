@@ -8,8 +8,10 @@ import {
   Cpu,
   Palette,
   ShieldAlert,
+  User as UserIcon,
+  Copy,
 } from 'lucide-react';
-import { api, Settings } from '@/lib/api';
+import { api, Settings, Profile } from '@/lib/api';
 import { auth } from '@/lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -27,6 +29,13 @@ export default function SettingsPage() {
     verbose: false,
     theme: 'Royal Purple',
   });
+  const [profile, setProfile] = useState<Profile>({
+    name: '',
+    email: '',
+    bio: '',
+    picture: '',
+    token: '',
+  });
   const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<{
     type: 'success' | 'error';
@@ -39,6 +48,7 @@ export default function SettingsPage() {
       setUser(u);
       if (u) {
         api.getSettings(u.uid).then((d) => setForm(d)).catch(() => {});
+        api.getProfile(u.uid).then((p) => setProfile(p)).catch(() => {});
       }
     });
     return () => unsubscribe();
@@ -53,11 +63,19 @@ export default function SettingsPage() {
     e.preventDefault();
     try {
       await api.updateSettings(form, user?.uid);
-      flash('success', 'Settings saved successfully.');
+      await api.updateProfile(profile, user?.uid);
+      flash('success', 'Settings and Profile saved successfully.');
     } catch (err: unknown) {
       flash('error', err instanceof Error ? err.message : 'Save failed.');
     }
   }
+
+  const copyToken = () => {
+    if (profile.token) {
+      navigator.clipboard.writeText(profile.token);
+      flash('success', 'Token copied to clipboard!');
+    }
+  };
 
   async function doReset() {
     setConfirmAction(null);
@@ -93,6 +111,75 @@ export default function SettingsPage() {
       )}
 
       <form onSubmit={save}>
+        {/* Profile Section */}
+        <div className="glass-card">
+          <div className="settings-section-icon">
+            <div className="settings-icon-wrap blue">
+              <UserIcon size={16} />
+            </div>
+            <p className="card-title">User Profile</p>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', marginBottom: '20px' }}>
+            {profile.picture ? (
+              <img src={profile.picture} alt="Avatar" className="auth-avatar-img large" style={{ width: 64, height: 64 }} />
+            ) : (
+              <div className="auth-avatar-fallback large" style={{ width: 64, height: 64, fontSize: '1.5rem' }}>
+                {profile.name?.[0] || '?'}
+              </div>
+            )}
+            <div style={{ flex: 1 }}>
+              <div className="form-group">
+                <label className="form-label">Display Name</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={profile.name} 
+                  onChange={(e) => setProfile({...profile, name: e.target.value})}
+                />
+              </div>
+              <div className="form-group" style={{ marginTop: '12px' }}>
+                <label className="form-label">Bio / Profession</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={profile.bio} 
+                  onChange={(e) => setProfile({...profile, bio: e.target.value})}
+                  placeholder="e.g. AI Enthusiast, Student, Researcher"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="form-group" style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px' }}>
+            <label className="form-label">Your Unique Sharing Token</label>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '4px' }}>
+              <code style={{ 
+                background: 'rgba(0,0,0,0.3)', 
+                padding: '8px 12px', 
+                borderRadius: '4px', 
+                letterSpacing: '2px',
+                fontSize: '1.1rem',
+                color: 'var(--accent)',
+                flex: 1
+              }}>
+                {profile.token || 'Generating...'}
+              </code>
+              <button 
+                type="button" 
+                className="btn-secondary" 
+                onClick={copyToken}
+                style={{ padding: '8px 12px' }}
+              >
+                <Copy size={14} />
+              </button>
+            </div>
+            <p className="section-sub" style={{ fontSize: '0.75rem', marginTop: '8px' }}>
+              Share this token with others to let them join your active research conversations.
+            </p>
+          </div>
+        </div>
+
         {/* Model Configuration */}
         <div className="glass-card">
           <div className="settings-section-icon">

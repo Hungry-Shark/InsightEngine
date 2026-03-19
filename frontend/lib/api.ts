@@ -16,10 +16,14 @@ export interface MyStuffItem {
   ts: string;
 }
 
+const WS_API = API.replace('http', 'ws');
+
 export interface Profile {
   name: string;
   email: string;
   bio: string;
+  picture?: string;
+  token?: string;
 }
 
 export interface Settings {
@@ -91,4 +95,6 @@ export const api = {
   
   kaggleStatus: () => req<{ configured: boolean; status?: string }>('/api/kaggle/status'),
   wakeupKaggle: () => req<{ ok: boolean; message: string }>('/api/kaggle/wakeup', null, { method: 'POST' }),
+
+  getWsChatUrl: (convId: string) => `${WS_API}/ws/chat/${convId}`,
 };

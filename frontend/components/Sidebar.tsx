@@ -10,7 +10,8 @@ import {
   MessageSquareDashed,
   Clock,
   Menu,
-  X
+  X,
+  Users
 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { api, HistoryEntry } from '@/lib/api';
@@ -21,6 +22,8 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [recents, setRecents] = useState<HistoryEntry[]>([]);
   const [profileName, setProfileName] = useState('User');
+  const [user, setUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const checkUnsaved = (callback: () => void) => {
     if (sessionStorage.getItem('has_unsaved_temp') === 'true') {
@@ -42,30 +45,54 @@ export default function Sidebar() {
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
       setCollapsed(true);
     }
+    
+    // Auth Listener
+    import('@/lib/firebase').then(({ auth }) => {
+      const unsubscribe = auth.onAuthStateChanged((u) => {
+        setUser(u);
+        setAuthLoading(false);
+      });
+      return () => unsubscribe();
+    });
+
     const handleToggle = () => setCollapsed((c) => !c);
     window.addEventListener('toggleSidebar', handleToggle);
     return () => window.removeEventListener('toggleSidebar', handleToggle);
   }, []);
 
   const fetchHistory = useCallback(() => {
+    if (!user) {
+      setRecents([]);
+      return;
+    }
     api
-      .getHistory()
+      .getHistory(user.uid)
       .then((d) => setRecents(d.history.slice(-10).reverse()))
-      .catch(() => {});
-  }, []);
+      .catch((err) => {
+        console.error("Failed to fetch history:", err);
+        setRecents([]);
+      });
+  }, [user]);
 
   useEffect(() => {
-    fetchHistory();
-    api
-      .getProfile()
-      .then((p) => setProfileName(p.name || 'User'))
-      .catch(() => {});
-  }, [pathname, fetchHistory]);
+    if (user) {
+      fetchHistory();
+      api
+        .getProfile(user.uid)
+        .then((p) => setProfileName(p.name || 'User'))
+        .catch(() => {});
+    } else {
+      setRecents([]);
+      setProfileName('Guest');
+    }
+  }, [user, pathname, fetchHistory]);
 
   useEffect(() => {
-    window.addEventListener('historyUpdated', fetchHistory);
-    return () => window.removeEventListener('historyUpdated', fetchHistory);
-  }, [fetchHistory]);
+    if (user) {
+      window.addEventListener('historyUpdated', fetchHistory);
+      return () => window.removeEventListener('historyUpdated', fetchHistory);
+    }
+  }, [user, fetchHistory]);
 
   const initials = profileName
     .split(' ')
@@ -132,24 +159,34 @@ export default function Sidebar() {
       {/* ── My stuff ── */}
       <div style={{ padding: '0 10px', marginTop: '8px' }}>
         <button
-          className={`nav-btn ${pathname === '/mystuff' ? 'active' : ''}`}
-          onClick={() => checkUnsaved(() => router.push('/mystuff'))}
+          className={`nav-btn ${pathname === '/mystuff' ? 'active' : ''} ${!user ? 'nav-btn-locked' : ''}`}
+          onClick={() => {
+            if (!user) return;
+            checkUnsaved(() => router.push('/mystuff'));
+          }}
+          disabled={!user && !authLoading}
         >
           <Star size={18} className="nav-icon" />
           <span className="nav-btn-label">My stuff</span>
-          <span className="nav-tooltip">My stuff</span>
+          {!user && !authLoading && <span style={{ marginLeft: 'auto', fontSize: '10px', opacity: 0.5 }}>LOCKED</span>}
+          <span className="nav-tooltip">{!user ? 'Sign in to save' : 'My stuff'}</span>
         </button>
       </div>
 
       {/* ── Recent / History Link ── */}
       <div style={{ padding: '0 10px', marginTop: '8px' }}>
         <button
-          className={`nav-btn ${pathname === '/history' ? 'active' : ''}`}
-          onClick={() => checkUnsaved(() => router.push('/history'))}
+          className={`nav-btn ${pathname === '/history' ? 'active' : ''} ${!user ? 'nav-btn-locked' : ''}`}
+          onClick={() => {
+            if (!user) return;
+            checkUnsaved(() => router.push('/history'));
+          }}
+          disabled={!user && !authLoading}
         >
           <Clock size={18} className="nav-icon" />
           <span className="nav-btn-label">Recent</span>
-          <span className="nav-tooltip">Recent History</span>
+          {!user && !authLoading && <span style={{ marginLeft: 'auto', fontSize: '10px', opacity: 0.5 }}>LOCKED</span>}
+          <span className="nav-tooltip">{!user ? 'Sign in for history' : 'Recent History'}</span>
         </button>
       </div>
 
@@ -191,8 +228,21 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* ── Bottom tray ── */}
       <div className="sidebar-bottom">
+        <button
+          className={`nav-btn ${pathname === '/collaborate' ? 'active' : ''} ${!user ? 'nav-btn-locked' : ''}`}
+          onClick={() => {
+            if (!user) return;
+            if (pathname !== '/') router.push('/');
+            setTimeout(() => window.dispatchEvent(new CustomEvent('toggleCollaboration')), 100);
+          }}
+          disabled={!user && !authLoading}
+        >
+          <Users size={18} className="nav-icon" />
+          <span className="nav-btn-label">Collaborate</span>
+          {!user && !authLoading && <span style={{ marginLeft: 'auto', fontSize: '10px', opacity: 0.5 }}>LOCKED</span>}
+          <span className="nav-tooltip">{!user ? 'Sign in to collaborate' : 'Research Room'}</span>
+        </button>
         <button
           className="nav-btn"
           onClick={() => checkUnsaved(() => router.push('/settings'))}

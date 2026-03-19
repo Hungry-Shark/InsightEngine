@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { auth, googleProvider } from "@/lib/firebase";
 import { signInWithPopup, signOut, User } from "firebase/auth";
+import { api } from "@/lib/api";
 import "./AuthAvatar.css";
 
 export default function AuthAvatar() {
@@ -11,9 +12,23 @@ export default function AuthAvatar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      setUser(user);
+    const unsubscribe = auth.onAuthStateChanged(async (u) => {
+      setUser(u);
       setLoading(false);
+      if (u) {
+        // Sync with backend
+        try {
+          const profile = await api.getProfile(u.uid);
+          await api.updateProfile({
+            ...profile,
+            name: u.displayName || profile.name || "User",
+            email: u.email || profile.email || "",
+            picture: u.photoURL || profile.picture || "",
+          }, u.uid);
+        } catch (err) {
+          console.error("Failed to sync profile:", err);
+        }
+      }
     });
     return () => unsubscribe();
   }, []);

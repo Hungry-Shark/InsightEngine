@@ -5,9 +5,9 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from typing import Optional, List, Dict, Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -20,19 +20,41 @@ if not os.environ.get("GOOGLE_API_KEY") and os.environ.get("GEMINI_API_KEY"):
 app = FastAPI(title="InsightEngine API", version="1.0.0")
 
 # Allow origins from environment variable or default to localhost
-allowed_origins: List[str] = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
-# Add the specific Vercel URL from the user's screenshot if not already there
-for url in ["https://insight-engine-007.vercel.app", "https://insight-engine-887.vercel.app"]:
-    if url not in allowed_origins:
-        allowed_origins.append(url)
+allowed_origins: List[str] = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://insight-engine-007.vercel.app",
+    "https://insight-engine-887.vercel.app"
+]
+env_origins = os.environ.get("ALLOWED_ORIGINS")
+if env_origins:
+    allowed_origins.extend(env_origins.split(","))
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=list(set(allowed_origins)),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Auth Enforcement ──────────────────────────────────────────────
+def get_authenticated_user(request: Request) -> str:
+    """Dependency to enforce authentication. Returns user ID or raises 401."""
+    uid = request.headers.get("X-User-Id")
+    if not uid or uid in ["null", "undefined", "anonymous"]:
+        raise HTTPException(
+            status_code=401, 
+            detail="Authentication required. Please sign up or sign in to use InsightEngine features."
+        )
+    return uid
+
+def get_user_id(request: Request) -> str:
+    """Extract user ID from X-User-Id header, fallback to 'anonymous' (for public routes)."""
+    uid = request.headers.get("X-User-Id")
+    if not uid or uid in ["null", "undefined", "anonymous"]:
+        return "anonymous"
+    return uid
 
 # ── Keep-Alive Background Task ──────────────
 import threading
@@ -63,8 +85,6 @@ def start_keep_alive():
     threading.Thread(target=keep_alive_loop, daemon=True).start()
 
 import traceback
-from fastapi import Request
-from fastapi.responses import JSONResponse
 import logging
 
 logger = logging.getLogger(__name__)
@@ -80,12 +100,6 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ── Firestore Initialization ──────────────
 db = None
 
-def get_user_id(request: Request) -> str:
-    """Extract user ID from X-User-Id header, fallback to 'anonymous'."""
-    uid = request.headers.get("X-User-Id")
-    if not uid or uid == "null" or uid == "undefined":
-        return "anonymous"
-    return uid
 try:
     if os.environ.get("FIREBASE_CREDENTIALS_BASE64"):
         import base64
@@ -121,6 +135,8 @@ _state: Dict[str, Any] = {
         "name": "User",
         "email": "",
         "bio": "",
+        "picture": "",
+        "token": "",
     },
     "settings": {
         "model": "gemini-1.5-flash",
@@ -129,11 +145,66 @@ _state: Dict[str, Any] = {
     },
 }
 
+def generate_user_token() -> str:
+    """Generate a unique 12-digit numeric token."""
+    import random
+    return "".join([str(random.randint(0, 9)) for _ in range(12)])
+
 try:
-    from .kaggle_client import KaggleManager
-except (ImportError, ValueError):
     from kaggle_client import KaggleManager
+except (ImportError, ValueError):
+    try:
+        from .kaggle_client import KaggleManager
+    except Exception:
+        # Final fallback or dummy if truly missing, but it should be there
+        class KaggleManager:
+            def is_configured(self): return False
+            def start_notebook(self): return False
+            def get_status(self): return "unconfigured"
 kaggle_mgr = KaggleManager()
+
+# ── Websocket Connection Manager ─────────────────────────────────────
+class ConnectionManager:
+    def __init__(self):
+        # Dictionary mapping conversation IDs to a list of active WebSockets
+        self.active_connections: Dict[str, List[WebSocket]] = {}
+
+    async def connect(self, websocket: WebSocket, conv_id: str):
+        await websocket.accept()
+        if conv_id not in self.active_connections:
+            self.active_connections[conv_id] = []
+        self.active_connections[conv_id].append(websocket)
+
+    def disconnect(self, websocket: WebSocket, conv_id: str):
+        if conv_id in self.active_connections:
+            self.active_connections[conv_id].remove(websocket)
+            if conv_id in self.active_connections:
+                self.active_connections.pop(conv_id, None)
+
+    async def broadcast(self, message: dict, conv_id: str):
+        if conv_id in self.active_connections:
+            for connection in self.active_connections[conv_id]:
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    # Connection might be stale
+                    pass
+
+manager = ConnectionManager()
+
+@app.websocket("/ws/chat/{conv_id}")
+async def websocket_endpoint(websocket: WebSocket, conv_id: str):
+    await manager.connect(websocket, conv_id)
+    try:
+        while True:
+            # We expect JSON like: {"type": "chat", "user": "...", "text": "...", "picture": "..."}
+            data = await websocket.receive_json()
+            await manager.broadcast(data, conv_id)
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, conv_id)
+    except Exception as e:
+        print(f"Websocket error: {e}")
+        manager.disconnect(websocket, conv_id)
 
 # ── Pydantic models ────────────────────────────────────────────────
 class ResearchRequest(BaseModel):
@@ -152,6 +223,8 @@ class ProfileUpdate(BaseModel):
     name: str
     email: str
     bio: str
+    picture: Optional[str] = ""
+    token: Optional[str] = ""
 
 class SettingsUpdate(BaseModel):
     model: str
@@ -171,8 +244,7 @@ def get_status():
 
 
 @app.post("/api/research")
-def run_research(req: ResearchRequest, request: Request):
-    user_id = get_user_id(request)
+def run_research(req: ResearchRequest, user_id: str = Depends(get_authenticated_user)):
     import time
     import logging
 
@@ -297,8 +369,7 @@ def run_research(req: ResearchRequest, request: Request):
 
 # ── History ─────────────────────────────────────────────────────────
 @app.get("/api/history")
-def get_history(request: Request):
-    user_id = get_user_id(request)
+def get_history(user_id: str = Depends(get_authenticated_user)):
     if db:
         docs = db.collection("users").document(user_id).collection("history").order_by("created_at").stream()
         history = [doc.to_dict() for doc in docs]
@@ -309,8 +380,7 @@ def get_history(request: Request):
 
 
 @app.delete("/api/history/{index}")
-def delete_history(index: int, request: Request):
-    user_id = get_user_id(request)
+def delete_history(index: int, user_id: str = Depends(get_authenticated_user)):
     if db:
         docs = list(db.collection("users").document(user_id).collection("history").order_by("created_at").stream())
         if index < 0 or index >= len(docs):
@@ -326,8 +396,7 @@ def delete_history(index: int, request: Request):
 
 
 @app.delete("/api/history")
-def clear_history(request: Request):
-    user_id = get_user_id(request)
+def clear_history(user_id: str = Depends(get_authenticated_user)):
     if db:
         docs = db.collection("users").document(user_id).collection("history").stream()
         for doc in docs:
@@ -338,8 +407,7 @@ def clear_history(request: Request):
     return {"ok": True}
 
 @app.post("/api/history/save")
-def save_history(req: SaveHistoryRequest, request: Request):
-    user_id = get_user_id(request)
+def save_history(req: SaveHistoryRequest, user_id: str = Depends(get_authenticated_user)):
     entry = req.model_dump()
     if db:
         entry["created_at"] = firestore.SERVER_TIMESTAMP
@@ -360,8 +428,7 @@ class MyStuffItem(BaseModel):
     ts: str
 
 @app.get("/api/mystuff")
-def get_mystuff(request: Request):
-    user_id = get_user_id(request)
+def get_mystuff(user_id: str = Depends(get_authenticated_user)):
     if db:
         docs = db.collection("users").document(user_id).collection("mystuff").order_by("created_at", direction=firestore.Query.DESCENDING).stream()
         items = [doc.to_dict() for doc in docs]
@@ -371,8 +438,7 @@ def get_mystuff(request: Request):
     return {"items": _state.get("my_stuff", [])}
 
 @app.post("/api/mystuff")
-def add_mystuff(item: MyStuffItem, request: Request):
-    user_id = get_user_id(request)
+def add_mystuff(item: MyStuffItem, user_id: str = Depends(get_authenticated_user)):
     entry = item.model_dump()
     if db:
         entry["created_at"] = firestore.SERVER_TIMESTAMP
@@ -386,8 +452,7 @@ def add_mystuff(item: MyStuffItem, request: Request):
     return {"ok": True}
 
 @app.delete("/api/mystuff/{item_id}")
-def delete_mystuff(item_id: str, request: Request):
-    user_id = get_user_id(request)
+def delete_mystuff(item_id: str, user_id: str = Depends(get_authenticated_user)):
     if db:
         db.collection("users").document(user_id).collection("mystuff").document(item_id).delete()
     else:
@@ -397,31 +462,44 @@ def delete_mystuff(item_id: str, request: Request):
 
 # ── Profile ──────────────────────────────────────────────────────────
 @app.get("/api/profile")
-def get_profile(request: Request):
-    user_id = get_user_id(request)
+def get_profile(user_id: str = Depends(get_authenticated_user)):
+    profile = _state["profile"].copy()
     if db:
         doc = db.collection("users").document(user_id).get()
         if doc.exists:
             data = doc.to_dict()
-            return data.get("profile", _state["profile"])
-    return _state["profile"]
+            profile = data.get("profile", _state["profile"])
+    
+    # Ensure token exists
+    if not profile.get("token"):
+        profile["token"] = generate_user_token()
+        if db:
+            db.collection("users").document(user_id).set({"profile": profile}, merge=True)
+        else:
+            _state["profile"] = profile
+            
+    return profile
 
 
 @app.put("/api/profile")
-def update_profile(body: ProfileUpdate, request: Request):
-    user_id = get_user_id(request)
-    _state["profile"]["name"] = body.name
-    _state["profile"]["email"] = body.email
-    _state["profile"]["bio"] = body.bio
+def update_profile(body: ProfileUpdate, user_id: str = Depends(get_authenticated_user)):
+    profile = {
+        "name": body.name,
+        "email": body.email,
+        "bio": body.bio,
+        "picture": body.picture,
+        "token": body.token if body.token else generate_user_token()
+    }
     if db:
-        db.collection("users").document(user_id).set({"profile": _state["profile"]}, merge=True)
+        db.collection("users").document(user_id).set({"profile": profile}, merge=True)
+    else:
+        _state["profile"] = profile
     return {"ok": True}
 
 
 # ── Settings ─────────────────────────────────────────────────────────
 @app.get("/api/settings")
-def get_settings(request: Request):
-    user_id = get_user_id(request)
+def get_settings(user_id: str = Depends(get_authenticated_user)):
     if db:
         doc = db.collection("users").document(user_id).get()
         if doc.exists:
@@ -430,20 +508,43 @@ def get_settings(request: Request):
     return _state["settings"]
 
 
-@app.put("/api/settings")
-def update_settings(body: SettingsUpdate, request: Request):
-    user_id = get_user_id(request)
-    _state["settings"]["model"] = body.model
-    _state["settings"]["verbose"] = body.verbose
-    _state["settings"]["theme"] = body.theme
     if db:
         db.collection("users").document(user_id).set({"settings": _state["settings"]}, merge=True)
     return {"ok": True}
 
+# ── Collaboration ───────────────────────────────────────────────────
+@app.get("/api/collaboration/join/{token}")
+def join_by_token(token: str, user_id: str = Depends(get_authenticated_user)):
+    """Find a user by their 12-digit token and return their active research."""
+    if db:
+        users = db.collection("users").where("profile.token", "==", token).limit(1).get()
+        if users:
+            user_doc = users[0]
+            user_data = user_doc.to_dict()
+            # For simplicity, we return the most recent history item as the "active" one
+            history = user_doc.reference.collection("history").order_by("ts", direction=firestore.Query.DESCENDING).limit(1).get()
+            if history:
+                return {
+                    "ok": True,
+                    "host_name": user_data.get("profile", {}).get("name", "Someone"),
+                    "host_id": user_doc.id,
+                    "research": history[0].to_dict()
+                }
+    
+    # Fallback to in-memory if no DB or token not found
+    if _state["profile"].get("token") == token:
+        return {
+            "ok": True,
+            "host_name": _state["profile"]["name"],
+            "host_id": "anonymous",
+            "research": _state["chat_history"][0] if _state["chat_history"] else None
+        }
+        
+    raise HTTPException(status_code=404, detail="Conversation not found or token invalid.")
+
 
 @app.post("/api/settings/reset")
-def reset_settings(request: Request):
-    user_id = get_user_id(request)
+def reset_settings(user_id: str = Depends(get_authenticated_user)):
     _state["settings"] = {
         "model": "gemini-1.5-flash",
         "verbose": False,
@@ -455,8 +556,7 @@ def reset_settings(request: Request):
 
 
 @app.get("/api/export/pdf/{index}")
-def export_pdf(index: int, request: Request):
-    user_id = get_user_id(request)
+def export_pdf(index: int, user_id: str = Depends(get_authenticated_user)):
     if db:
         docs = list(db.collection("users").document(user_id).collection("history").order_by("created_at").stream())
         if index < 0 or index >= len(docs):

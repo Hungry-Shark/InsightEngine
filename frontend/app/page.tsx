@@ -3,11 +3,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Sparkles, Download, Plus, Mic, X, Send, Image as ImageIcon } from 'lucide-react';
-import { api, ResearchResult } from '@/lib/api';
+import { Sparkles, Download, Plus, Mic, X, Send, Image as ImageIcon, Users } from 'lucide-react';
+import { api, ResearchResult, Profile } from '@/lib/api';
 import { auth } from '@/lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import BorderGlow from '@/components/BorderGlow';
+import CollaborationModal from '@/components/CollaborationModal';
+import CollaborationChat, { ChatMessage } from '@/components/CollaborationChat';
 
 const SUGGESTIONS = [
   'AI trends in 2026',
@@ -27,6 +29,15 @@ export default function ChatPage() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [settings, setSettings] = useState<{ model: string; verbose: boolean; theme: string } | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  
+  // Collaboration state
+  const [showCollabModal, setShowCollabModal] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [roomToken, setRoomToken] = useState<string | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -42,16 +53,18 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    const fetchSettings = async () => {
+    const fetchProfileData = async () => {
       try {
         const s = await api.getSettings(user?.uid);
         setSettings(s);
+        const p = await api.getProfile(user?.uid);
+        setProfile(p);
       } catch (err) {
-        console.error('Failed to fetch settings', err);
+        console.error('Failed to fetch user data', err);
       }
     };
     if (!authLoading) {
-      fetchSettings();
+      fetchProfileData();
     }
   }, [user, authLoading]);
 
@@ -148,11 +161,77 @@ export default function ChatPage() {
         sessionStorage.removeItem('preloaded_report');
       }
     } catch {
-      // ignore
+      console.warn("Session storage sync failed");
     }
   }, []);
 
-  // Pick up preloaded report on initial mount
+  const connectToRoom = useCallback((token: string) => {
+    if (wsRef.current) wsRef.current.close();
+    
+    const url = api.getWsChatUrl(token);
+    const socket = new WebSocket(url);
+    
+    socket.onopen = () => {
+      console.log("Connected to room:", token);
+      setRoomToken(token);
+      setShowChat(true);
+      socket.send(JSON.stringify({
+        type: "info",
+        text: `${profile?.name || 'Someone'} joined the room.`
+      }));
+    };
+    
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "chat" || data.type === "info") {
+        setChatMessages(prev => [...prev, data]);
+      }
+    };
+    
+    socket.onclose = () => {
+      console.log("Disconnected from room");
+      setRoomToken(null);
+    };
+    
+    wsRef.current = socket;
+  }, [profile]);
+
+  const handleJoinByToken = async (token: string) => {
+    try {
+      setLoading(true);
+      const host = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const res = await (fetch(`${host}/api/collaboration/join/${token}`).then(r => r.json()));
+      
+      if (res.ok) {
+        if (res.research) {
+          setThread([res.research]);
+        }
+        connectToRoom(token);
+        setShowCollabModal(false);
+        setError('');
+      } else {
+        setError("Invalid Room ID or research not found.");
+      }
+    } catch (err) {
+      setError("Failed to join room.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendChatMessage = (text: string) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: "chat",
+        user: profile?.name || "User",
+        text: text,
+        picture: profile?.picture,
+        ts: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }));
+    }
+  };
+
   useEffect(() => {
     loadFromSession();
   }, [loadFromSession]);
@@ -179,13 +258,19 @@ export default function ChatPage() {
       setIsTemporary(true);
     };
 
+    const handleToggleCollab = () => {
+      setShowCollabModal(true);
+    };
+
     window.addEventListener('loadReport', handleLoadReport);
     window.addEventListener('newChat', handleNewChat);
     window.addEventListener('tempChat', handleTempChat);
+    window.addEventListener('toggleCollaboration', handleToggleCollab);
     return () => {
       window.removeEventListener('loadReport', handleLoadReport);
       window.removeEventListener('newChat', handleNewChat);
       window.removeEventListener('tempChat', handleTempChat);
+      window.removeEventListener('toggleCollaboration', handleToggleCollab);
     };
   }, [loadFromSession]);
 
@@ -315,11 +400,88 @@ export default function ChatPage() {
     setTopic(s);
   }
 
-  const phases = ['Researching', 'Validating', 'Writing'];
   const showHero = thread.length === 0 && !loading;
 
   return (
     <div className="page-inner">
+      {!authLoading && !user && (
+        <div className="landing-modal-overlay">
+          <div className="landing-modal-window">
+            {/* Background Video */}
+            <video 
+              autoPlay 
+              muted 
+              loop 
+              playsInline 
+              className="landing-video-bg"
+            >
+              <source src="/signup.mp4" type="video/mp4" />
+            </video>
+
+            {/* Content Overlay */}
+            <div className="landing-content-overlay">
+              <div className="landing-left-info">
+                {/* Branding/Stats baked into video */}
+              </div>
+
+              <div className="landing-right-info">
+                {/* Branding/Stats baked into video */}
+              </div>
+            </div>
+
+            {/* Auth Card */}
+            <div className="auth-card-landing-fixed">
+              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                <h2 style={{ fontSize: '1.6rem', fontWeight: '700', marginBottom: '6px', color: '#fff' }}>Get Started</h2>
+                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.85rem' }}>Join the future of deep research.</p>
+              </div>
+
+              <button 
+                className="btn-frosted-join" 
+                style={{ width: '100%', padding: '14px', borderRadius: '14px', fontSize: '0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '16px' }}
+                onClick={() => {
+                  const authBtn = document.querySelector('.auth-btn-signin') as HTMLElement;
+                  if (authBtn) authBtn.click();
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" opacity=".2"/>
+                  <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" opacity=".2"/>
+                  <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" opacity=".2"/>
+                  <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" opacity=".2"/>
+                </svg>
+                Continue with Google
+              </button>
+              
+              <div className="auth-divider">OR</div>
+              
+              <div style={{ position: 'relative', marginBottom: '16px' }}>
+                <input 
+                  type="email" 
+                  placeholder="Enter your email" 
+                  className="research-input" 
+                  style={{ width: '100%', minHeight: '48px', padding: '0 16px', borderRadius: '14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+                />
+              </div>
+              
+              <button 
+                className="btn-primary" 
+                style={{ width: '100%', padding: '14px', borderRadius: '14px', fontSize: '0.95rem', background: '#fff', color: '#000', border: 'none', fontWeight: '600' }}
+                onClick={() => {
+                   const authBtn = document.querySelector('.auth-btn-signin') as HTMLElement;
+                   if (authBtn) authBtn.click();
+                }}
+              >
+                Continue with email
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Hero — only when no conversation exists */}
       {showHero && (
         <div className="hero">
@@ -575,7 +737,7 @@ export default function ChatPage() {
 
       {/* Error */}
       {error && <div className="alert alert-error" style={{ marginTop: '24px', marginBottom: '24px' }}>⚠ {error}</div>}
-
+ 
       {/* Loader */}
       {loading && (
         <div className="glass-card" style={{ marginTop: '24px', marginBottom: '32px', animation: 'cardFadeIn 0.4s ease' }}>
@@ -585,7 +747,7 @@ export default function ChatPage() {
               InsightEngine is working on your research…
             </p>
             <div className="progress-steps">
-              {phases.map((p, i) => (
+              {['Researching', 'Validating', 'Writing'].map((p, i) => (
                 <span key={p} style={{ display: 'contents' }}>
                   {i > 0 && <span className="progress-connector" />}
                   <span
@@ -652,6 +814,28 @@ export default function ChatPage() {
             </div>
           </div>
         </div>
+      )}
+
+      <CollaborationModal 
+        open={showCollabModal}
+        onClose={() => setShowCollabModal(false)}
+        profile={profile || { name: 'User', email: '', bio: '', token: '' }}
+        onJoin={handleJoinByToken}
+        onCopyToken={() => {
+          if (profile?.token) {
+            navigator.clipboard.writeText(profile.token);
+          }
+        }}
+      />
+
+      {showChat && (
+        <CollaborationChat 
+          messages={chatMessages}
+          onSendMessage={sendChatMessage}
+          onClose={() => setShowChat(false)}
+          currentUser={{ name: profile?.name || 'User', picture: profile?.picture }}
+          roomName={roomToken || 'Research'}
+        />
       )}
     </div>
   );
