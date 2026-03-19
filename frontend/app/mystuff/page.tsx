@@ -3,16 +3,19 @@
 import { useState, useEffect } from 'react';
 import { Trash2, FileText, Search, Download } from 'lucide-react';
 import { api, MyStuffItem } from '@/lib/api';
+import { auth } from '@/lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
 
 export default function MyStuffPage() {
   const [items, setItems] = useState<MyStuffItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [user, setUser] = useState<User | null>(null);
 
-  async function load() {
+  async function load(uid?: string | null) {
     try {
-      const data = await api.getMyStuff();
+      const data = await api.getMyStuff(uid);
       setItems(data.items || []);
     } catch {
       setError('Failed to load items.');
@@ -22,12 +25,16 @@ export default function MyStuffPage() {
   }
 
   useEffect(() => {
-    load();
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      load(u?.uid);
+    });
+    return () => unsubscribe();
   }, []);
 
   async function remove(id: string) {
     try {
-      await api.deleteMyStuff(id);
+      await api.deleteMyStuff(id, user?.uid);
       setItems((prev) => prev.filter((item) => item.id !== id));
     } catch {
       setError('Failed to delete item.');

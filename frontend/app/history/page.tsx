@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { api, HistoryEntry } from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import { auth } from '@/lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import ConfirmModal from '@/components/ConfirmModal';
 
 export default function HistoryPage() {
@@ -21,11 +23,12 @@ export default function HistoryPage() {
   const [error, setError] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (uid?: string | null) => {
     try {
-      const data = await api.getHistory();
+      const data = await api.getHistory(uid);
       setHistory([...data.history].reverse());
     } catch {
       setError('Failed to load history.');
@@ -35,15 +38,23 @@ export default function HistoryPage() {
   }, []);
 
   useEffect(() => {
-    load();
-    window.addEventListener('historyUpdated', load);
-    return () => window.removeEventListener('historyUpdated', load);
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      load(u?.uid);
+    });
+    return () => unsubscribe();
   }, [load]);
+
+  useEffect(() => {
+    const reload = () => load(user?.uid);
+    window.addEventListener('historyUpdated', reload);
+    return () => window.removeEventListener('historyUpdated', reload);
+  }, [load, user]);
 
   async function remove(reversedIndex: number) {
     const realIndex = history.length - 1 - reversedIndex;
     try {
-      await api.deleteHistory(realIndex);
+      await api.deleteHistory(realIndex, user?.uid);
       setHistory((h) => h.filter((_, i) => i !== reversedIndex));
     } catch {
       setError('Failed to delete entry.');
@@ -53,7 +64,7 @@ export default function HistoryPage() {
   async function doClearAll() {
     setShowClearConfirm(false);
     try {
-      await api.clearHistory();
+      await api.clearHistory(user?.uid);
       setHistory([]);
     } catch {
       setError('Failed to clear history.');

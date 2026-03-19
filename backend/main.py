@@ -79,7 +79,13 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # ── Firestore Initialization ──────────────
 db = None
-USER_ID = "default_user"
+
+def get_user_id(request: Request) -> str:
+    """Extract user ID from X-User-Id header, fallback to 'anonymous'."""
+    uid = request.headers.get("X-User-Id")
+    if not uid or uid == "null" or uid == "undefined":
+        return "anonymous"
+    return uid
 try:
     if os.environ.get("FIREBASE_CREDENTIALS_BASE64"):
         import base64
@@ -158,7 +164,8 @@ def get_status():
 
 
 @app.post("/api/research")
-def run_research(req: ResearchRequest):
+def run_research(req: ResearchRequest, request: Request):
+    user_id = get_user_id(request)
     import time
     import logging
 
@@ -227,7 +234,7 @@ def run_research(req: ResearchRequest):
             if not req.temporary:
                 if db:
                     entry["created_at"] = firestore.SERVER_TIMESTAMP
-                    db.collection("users").document(USER_ID).collection("history").add(entry)
+                    db.collection("users").document(user_id).collection("history").add(entry)
                     entry.pop("created_at")
                 else:
                     _state["chat_history"].append(entry)
@@ -267,9 +274,10 @@ def run_research(req: ResearchRequest):
 
 # ── History ─────────────────────────────────────────────────────────
 @app.get("/api/history")
-def get_history():
+def get_history(request: Request):
+    user_id = get_user_id(request)
     if db:
-        docs = db.collection("users").document(USER_ID).collection("history").order_by("created_at").stream()
+        docs = db.collection("users").document(user_id).collection("history").order_by("created_at").stream()
         history = [doc.to_dict() for doc in docs]
         for h in history:
             h.pop("created_at", None)
@@ -278,9 +286,10 @@ def get_history():
 
 
 @app.delete("/api/history/{index}")
-def delete_history(index: int):
+def delete_history(index: int, request: Request):
+    user_id = get_user_id(request)
     if db:
-        docs = list(db.collection("users").document(USER_ID).collection("history").order_by("created_at").stream())
+        docs = list(db.collection("users").document(user_id).collection("history").order_by("created_at").stream())
         if index < 0 or index >= len(docs):
             raise HTTPException(status_code=404, detail="History entry not found")
         docs[index].reference.delete()
@@ -294,9 +303,10 @@ def delete_history(index: int):
 
 
 @app.delete("/api/history")
-def clear_history():
+def clear_history(request: Request):
+    user_id = get_user_id(request)
     if db:
-        docs = db.collection("users").document(USER_ID).collection("history").stream()
+        docs = db.collection("users").document(user_id).collection("history").stream()
         for doc in docs:
             doc.reference.delete()
         return {"ok": True}
@@ -305,11 +315,12 @@ def clear_history():
     return {"ok": True}
 
 @app.post("/api/history/save")
-def save_history(req: SaveHistoryRequest):
-    entry = req.dict()
+def save_history(req: SaveHistoryRequest, request: Request):
+    user_id = get_user_id(request)
+    entry = req.model_dump()
     if db:
         entry["created_at"] = firestore.SERVER_TIMESTAMP
-        db.collection("users").document(USER_ID).collection("history").add(entry)
+        db.collection("users").document(user_id).collection("history").add(entry)
         entry.pop("created_at", None)
     else:
         _state["chat_history"].append(entry)
@@ -326,9 +337,10 @@ class MyStuffItem(BaseModel):
     ts: str
 
 @app.get("/api/mystuff")
-def get_mystuff():
+def get_mystuff(request: Request):
+    user_id = get_user_id(request)
     if db:
-        docs = db.collection("users").document(USER_ID).collection("mystuff").order_by("created_at", direction=firestore.Query.DESCENDING).stream()
+        docs = db.collection("users").document(user_id).collection("mystuff").order_by("created_at", direction=firestore.Query.DESCENDING).stream()
         items = [doc.to_dict() for doc in docs]
         for it in items:
             it.pop("created_at", None)
@@ -336,11 +348,12 @@ def get_mystuff():
     return {"items": _state.get("my_stuff", [])}
 
 @app.post("/api/mystuff")
-def add_mystuff(item: MyStuffItem):
+def add_mystuff(item: MyStuffItem, request: Request):
+    user_id = get_user_id(request)
     entry = item.model_dump()
     if db:
         entry["created_at"] = firestore.SERVER_TIMESTAMP
-        db.collection("users").document(USER_ID).collection("mystuff").document(item.id).set(entry)
+        db.collection("users").document(user_id).collection("mystuff").document(item.id).set(entry)
         entry.pop("created_at", None)
     else:
         if "my_stuff" not in _state:
@@ -350,9 +363,10 @@ def add_mystuff(item: MyStuffItem):
     return {"ok": True}
 
 @app.delete("/api/mystuff/{item_id}")
-def delete_mystuff(item_id: str):
+def delete_mystuff(item_id: str, request: Request):
+    user_id = get_user_id(request)
     if db:
-        db.collection("users").document(USER_ID).collection("mystuff").document(item_id).delete()
+        db.collection("users").document(user_id).collection("mystuff").document(item_id).delete()
     else:
         if "my_stuff" in _state:
             _state["my_stuff"] = [it for it in _state["my_stuff"] if it.get("id") != item_id]
@@ -360,9 +374,10 @@ def delete_mystuff(item_id: str):
 
 # ── Profile ──────────────────────────────────────────────────────────
 @app.get("/api/profile")
-def get_profile():
+def get_profile(request: Request):
+    user_id = get_user_id(request)
     if db:
-        doc = db.collection("users").document(USER_ID).get()
+        doc = db.collection("users").document(user_id).get()
         if doc.exists:
             data = doc.to_dict()
             return data.get("profile", _state["profile"])
@@ -370,20 +385,22 @@ def get_profile():
 
 
 @app.put("/api/profile")
-def update_profile(body: ProfileUpdate):
+def update_profile(body: ProfileUpdate, request: Request):
+    user_id = get_user_id(request)
     _state["profile"]["name"] = body.name
     _state["profile"]["email"] = body.email
     _state["profile"]["bio"] = body.bio
     if db:
-        db.collection("users").document(USER_ID).set({"profile": _state["profile"]}, merge=True)
+        db.collection("users").document(user_id).set({"profile": _state["profile"]}, merge=True)
     return {"ok": True}
 
 
 # ── Settings ─────────────────────────────────────────────────────────
 @app.get("/api/settings")
-def get_settings():
+def get_settings(request: Request):
+    user_id = get_user_id(request)
     if db:
-        doc = db.collection("users").document(USER_ID).get()
+        doc = db.collection("users").document(user_id).get()
         if doc.exists:
             data = doc.to_dict()
             return data.get("settings", _state["settings"])
@@ -391,31 +408,34 @@ def get_settings():
 
 
 @app.put("/api/settings")
-def update_settings(body: SettingsUpdate):
+def update_settings(body: SettingsUpdate, request: Request):
+    user_id = get_user_id(request)
     _state["settings"]["model"] = body.model
     _state["settings"]["verbose"] = body.verbose
     _state["settings"]["theme"] = body.theme
     if db:
-        db.collection("users").document(USER_ID).set({"settings": _state["settings"]}, merge=True)
+        db.collection("users").document(user_id).set({"settings": _state["settings"]}, merge=True)
     return {"ok": True}
 
 
 @app.post("/api/settings/reset")
-def reset_settings():
+def reset_settings(request: Request):
+    user_id = get_user_id(request)
     _state["settings"] = {
         "model": "gemini-1.5-flash",
         "verbose": False,
         "theme": "Royal Purple",
     }
     if db:
-        db.collection("users").document(USER_ID).set({"settings": _state["settings"]}, merge=True)
+        db.collection("users").document(user_id).set({"settings": _state["settings"]}, merge=True)
     return {"ok": True}
 
 
 @app.get("/api/export/pdf/{index}")
-def export_pdf(index: int):
+def export_pdf(index: int, request: Request):
+    user_id = get_user_id(request)
     if db:
-        docs = list(db.collection("users").document(USER_ID).collection("history").order_by("created_at").stream())
+        docs = list(db.collection("users").document(user_id).collection("history").order_by("created_at").stream())
         if index < 0 or index >= len(docs):
             raise HTTPException(status_code=404, detail="History entry not found")
         entry = docs[index].to_dict()

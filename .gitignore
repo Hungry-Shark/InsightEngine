@@ -7,3 +7,4 @@ venv/
 dist/
 build/
 .next/
+backend/firebase_credentials.json

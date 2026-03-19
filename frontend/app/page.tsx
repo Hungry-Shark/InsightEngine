@@ -5,6 +5,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Sparkles, Download, Plus, Mic, X, Send, Image as ImageIcon } from 'lucide-react';
 import { api, ResearchResult } from '@/lib/api';
+import { auth } from '@/lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import BorderGlow from '@/components/BorderGlow';
 
 const SUGGESTIONS = [
@@ -22,11 +24,21 @@ export default function ChatPage() {
   const [phase, setPhase] = useState(0); // 0=idle, 1=researching, 2=validating, 3=writing
   const [isTemporary, setIsTemporary] = useState(false);
   const [savePromptId, setSavePromptId] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
+  
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -186,7 +198,7 @@ export default function ChatPage() {
     abortControllerRef.current = new AbortController();
 
     try {
-      const data = await api.research(topic.trim(), isTemporary, abortControllerRef.current.signal);
+      const data = await api.research(topic.trim(), user?.uid, isTemporary, abortControllerRef.current.signal);
       // Append to thread instead of replacing
       setThread((prev) => [...prev, data]);
       setTopic('');
@@ -272,7 +284,7 @@ export default function ChatPage() {
           source_topic: result.topic,
           content: result.report,
           ts: new Date().toISOString()
-        }).catch(console.error);
+        }, user?.uid).catch(console.error);
       });
     });
   }
@@ -584,7 +596,7 @@ export default function ChatPage() {
                 onClick={async () => {
                   try {
                     for (const t of thread) { 
-                      await api.saveHistory({ ...t, ts: new Date().toISOString() }); 
+                      await api.saveHistory({ ...t, ts: new Date().toISOString() }, user?.uid); 
                     }
                     setIsTemporary(false);
                     sessionStorage.setItem('has_unsaved_temp', 'false');

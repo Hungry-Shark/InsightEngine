@@ -8,6 +8,7 @@ import "./AuthAvatar.css";
 export default function AuthAvatar() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -16,6 +17,19 @@ export default function AuthAvatar() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".auth-avatar-container")) {
+        setDropdownOpen(false);
+      }
+    };
+    window.addEventListener("click", handleClickOutside);
+    return () => window.removeEventListener("click", handleClickOutside);
+  }, [dropdownOpen]);
 
   const handleSignIn = async () => {
     try {
@@ -28,6 +42,7 @@ export default function AuthAvatar() {
   const handleSignOut = async () => {
     try {
       await signOut(auth);
+      setDropdownOpen(false);
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -40,12 +55,11 @@ export default function AuthAvatar() {
   return (
     <div className="auth-avatar-container">
       {user ? (
-        <>
-          <span className="auth-pro-badge">PRO</span>
+        <div style={{ position: 'relative' }}>
           <button 
-            onClick={handleSignOut} 
-            title="Click to Sign Out" 
-            className="auth-profile-btn"
+            onClick={() => setDropdownOpen(!dropdownOpen)} 
+            className={`auth-profile-btn ${dropdownOpen ? 'active' : ''}`}
+            title="User Profile"
           >
             {user.photoURL ? (
               <img src={user.photoURL} alt="User Avatar" className="auth-avatar-img" />
@@ -55,7 +69,20 @@ export default function AuthAvatar() {
               </div>
             )}
           </button>
-        </>
+
+          {dropdownOpen && (
+            <div className="auth-dropdown glass-card">
+              <div className="auth-dropdown-header">
+                <p className="auth-user-name">{user.displayName || 'User'}</p>
+                <p className="auth-user-email">{user.email}</p>
+              </div>
+              <div className="auth-dropdown-divider" />
+              <button onClick={handleSignOut} className="auth-dropdown-item signout">
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
       ) : (
         <button
           onClick={handleSignIn}

@@ -40,9 +40,14 @@ export interface ApiStatus {
   tavily_api: boolean;
 }
 
-async function req<T>(path: string, options?: RequestInit): Promise<T> {
+async function req<T>(path: string, uid?: string | null, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (uid) {
+    headers['X-User-Id'] = uid;
+  }
+  
   const res = await fetch(`${API}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     ...options,
   });
   if (!res.ok) {
@@ -55,31 +60,31 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   status: () => req<ApiStatus>('/api/status'),
 
-  research: (topic: string, temporary: boolean = false, signal?: AbortSignal) =>
-    req<ResearchResult>('/api/research', {
+  research: (topic: string, uid?: string | null, temporary: boolean = false, signal?: AbortSignal) =>
+    req<ResearchResult>('/api/research', uid, {
       method: 'POST',
       body: JSON.stringify({ topic, temporary }),
       signal
     }),
 
-  getHistory: () => req<{ history: HistoryEntry[] }>('/api/history'),
-  deleteHistory: (index: number) => req<{ ok: boolean }>(`/api/history/${index}`, { method: 'DELETE' }),
-  clearHistory: () => req<{ ok: boolean }>('/api/history', { method: 'DELETE' }),
+  getHistory: (uid?: string | null) => req<{ history: HistoryEntry[] }>('/api/history', uid),
+  deleteHistory: (index: number, uid?: string | null) => req<{ ok: boolean }>(`/api/history/${index}`, uid, { method: 'DELETE' }),
+  clearHistory: (uid?: string | null) => req<{ ok: boolean }>('/api/history', uid, { method: 'DELETE' }),
 
-  getMyStuff: () => req<{ items: MyStuffItem[] }>('/api/mystuff'),
-  addToMyStuff: (data: MyStuffItem) =>
-    req<{ ok: boolean }>('/api/mystuff', { method: 'POST', body: JSON.stringify(data) }),
-  deleteMyStuff: (id: string) => req<{ ok: boolean }>(`/api/mystuff/${id}`, { method: 'DELETE' }),
-  saveHistory: (data: HistoryEntry) => req<{ ok: boolean }>('/api/history/save', { method: 'POST', body: JSON.stringify(data) }),
+  getMyStuff: (uid?: string | null) => req<{ items: MyStuffItem[] }>('/api/mystuff', uid),
+  addToMyStuff: (data: MyStuffItem, uid?: string | null) =>
+    req<{ ok: boolean }>('/api/mystuff', uid, { method: 'POST', body: JSON.stringify(data) }),
+  deleteMyStuff: (id: string, uid?: string | null) => req<{ ok: boolean }>(`/api/mystuff/${id}`, uid, { method: 'DELETE' }),
+  saveHistory: (data: HistoryEntry, uid?: string | null) => req<{ ok: boolean }>('/api/history/save', uid, { method: 'POST', body: JSON.stringify(data) }),
 
-  getProfile: () => req<Profile>('/api/profile'),
-  updateProfile: (data: Profile) =>
-    req<{ ok: boolean }>('/api/profile', { method: 'PUT', body: JSON.stringify(data) }),
+  getProfile: (uid?: string | null) => req<Profile>('/api/profile', uid),
+  updateProfile: (data: Profile, uid?: string | null) =>
+    req<{ ok: boolean }>('/api/profile', uid, { method: 'PUT', body: JSON.stringify(data) }),
 
-  getSettings: () => req<Settings>('/api/settings'),
-  updateSettings: (data: Settings) =>
-    req<{ ok: boolean }>('/api/settings', { method: 'PUT', body: JSON.stringify(data) }),
-  resetSettings: () => req<{ ok: boolean }>('/api/settings/reset', { method: 'POST' }),
+  getSettings: (uid?: string | null) => req<Settings>('/api/settings', uid),
+  updateSettings: (data: Settings, uid?: string | null) =>
+    req<{ ok: boolean }>('/api/settings', uid, { method: 'PUT', body: JSON.stringify(data) }),
+  resetSettings: (uid?: string | null) => req<{ ok: boolean }>('/api/settings/reset', uid, { method: 'POST' }),
 
   pdfUrl: (index: number) => `${API}/api/export/pdf/${index}`,
 };

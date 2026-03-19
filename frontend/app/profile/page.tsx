@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { Save, Camera } from 'lucide-react';
 import { api, Profile } from '@/lib/api';
+import { auth } from '@/lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import ReflectiveCard from '@/components/ReflectiveCard';
 
 export default function ProfilePage() {
@@ -10,24 +12,31 @@ export default function ProfilePage() {
   const [status, setStatus] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [apiStatus, setApiStatus] = useState({ google_api: false, tavily_api: false });
   const [reportCount, setReportCount] = useState(0);
+  const [user, setUser] = useState<User | null>(null);
   const [imageSrc, setImageSrc] = useState("https://plus.unsplash.com/premium_photo-1689539137236-b68e436248de?q=80&w=800&auto=format&fit=crop");
 
   useEffect(() => {
-    api.getProfile().then((d) => {
-      setForm({
-        name: d.name || 'Alexander Doe',
-        email: d.email || '',
-        bio: d.bio || 'Senior Developer'
-      });
-    }).catch(() => {});
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      if (u) {
+        api.getProfile(u.uid).then((d) => {
+          setForm({
+            name: d.name || u.displayName || 'User',
+            email: d.email || u.email || '',
+            bio: d.bio || 'Member'
+          });
+        }).catch(() => {});
+        api.getHistory(u.uid).then((d) => setReportCount(d.history.length)).catch(() => {});
+      }
+    });
     api.status().then((d) => setApiStatus(d)).catch(() => {});
-    api.getHistory().then((d) => setReportCount(d.history.length)).catch(() => {});
+    return () => unsubscribe();
   }, []);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     try {
-      await api.updateProfile(form);
+      await api.updateProfile(form, user?.uid);
       setStatus({ type: 'success', msg: 'Profile saved successfully.' });
     } catch (err: unknown) {
       setStatus({ type: 'error', msg: err instanceof Error ? err.message : 'Save failed.' });

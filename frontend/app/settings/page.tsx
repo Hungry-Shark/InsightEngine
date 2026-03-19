@@ -10,6 +10,8 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { api, Settings } from '@/lib/api';
+import { auth } from '@/lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import ConfirmModal from '@/components/ConfirmModal';
 
 const MODELS = [
@@ -28,6 +30,7 @@ export default function SettingsPage() {
     verbose: false,
     theme: 'Royal Purple',
   });
+  const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<{
     type: 'success' | 'error';
     msg: string;
@@ -35,7 +38,13 @@ export default function SettingsPage() {
   const [confirmAction, setConfirmAction] = useState<'reset' | 'clearHistory' | null>(null);
 
   useEffect(() => {
-    api.getSettings().then((d) => setForm(d)).catch(() => {});
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      if (u) {
+        api.getSettings(u.uid).then((d) => setForm(d)).catch(() => {});
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   function flash(type: 'success' | 'error', msg: string) {
@@ -46,7 +55,7 @@ export default function SettingsPage() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     try {
-      await api.updateSettings(form);
+      await api.updateSettings(form, user?.uid);
       flash('success', 'Settings saved successfully.');
     } catch (err: unknown) {
       flash('error', err instanceof Error ? err.message : 'Save failed.');
@@ -56,8 +65,8 @@ export default function SettingsPage() {
   async function doReset() {
     setConfirmAction(null);
     try {
-      await api.resetSettings();
-      const defaults = await api.getSettings();
+      await api.resetSettings(user?.uid);
+      const defaults = await api.getSettings(user?.uid);
       setForm(defaults);
       flash('success', 'Settings reset to defaults.');
     } catch {
@@ -68,7 +77,7 @@ export default function SettingsPage() {
   async function doClearHistory() {
     setConfirmAction(null);
     try {
-      await api.clearHistory();
+      await api.clearHistory(user?.uid);
       flash('success', 'Chat history cleared.');
     } catch {
       flash('error', 'Clear failed.');
