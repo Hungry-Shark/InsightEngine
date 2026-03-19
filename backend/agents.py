@@ -27,12 +27,27 @@ def _get_llm(provider="gemini"):
             api_key=groq_key,
         )
         return llm, "groq"
+    elif provider == "kaggle-qwen":
+        kaggle_url = os.environ.get("KAGGLE_INTERNVL_URL")
+        if not kaggle_url:
+            raise RuntimeError(
+                "No KAGGLE_INTERNVL_URL found in .env. "
+                "Run the Kaggle notebook and update the URL."
+            )
+        # OpenAI-compatible API on Kaggle
+        llm = LLM(
+            model="openai/qwen2-vl", # Updated to Qwen2-VL
+            base_url=f"{kaggle_url.rstrip('/')}/v1",
+            api_key="none", # Not needed for the custom tunnel
+            temperature=0.7,
+        )
+        return llm, "kaggle-qwen"
     else:
         if not google_key:
             raise RuntimeError("No GOOGLE_API_KEY or GEMINI_API_KEY found in .env.")
         llm = LLM(
-            model="gemini/gemini-2.0-flash",
-            temperature=0.5,
+            model="gemini/gemini-1.5-flash",
+            temperature=0.7,
             api_key=google_key,
         )
         return llm, "gemini"
@@ -59,42 +74,50 @@ def create_agents(provider="gemini"):
 
     researcher = Agent(
         role='Lead Technical Researcher',
-        goal='Identify and synthesize the most relevant, high-quality information on {topic}',
-        backstory="""You are an elite researcher specialized in emerging technologies. 
-        Your strength lies in navigating complex technical documentation and 
-        distinguishing factual breakthroughs from marketing hype.""",
+        goal='Identify, verify, and synthesize high-priority, technically accurate information on {topic}',
+        backstory="""You are a world-class technical investigator. Your mission is to find 
+        VERIFIABLE facts. You must distinguish actual breakthroughs from marketing buzz. 
+        CRITICAL: Every fact you find MUST be linked to a real, accessible source URL. 
+        NEVER use placeholder text like '[URL]' or 'Link here'—if you cannot find a 
+        legitimate, specific URL for a point, you must either find a better source or 
+        describe the information in a way that doesn't imply a missing citation.""",
         tools=[search_tool],
         llm=llm,
         allow_delegation=False,
         verbose=True,
-        max_iter=2,
-        max_rpm=4
+        max_iter=3,
+        max_rpm=10
     )
 
     writer = Agent(
-        role='Senior Technical Content Strategist',
-        goal='Translate complex research data into a polished, executive-level markdown report.',
-        backstory="""You are a master of communication. You take raw technical data 
-        and transform it into structured, compelling narratives that are easy 
-        for both developers and executives to understand.""",
+        role='Expert Technical Report Architect',
+        goal='Translate research data into a premium-grade markdown report with perfect structural integrity.',
+        backstory="""You are a master of communication and structural logic. You take 
+        raw technical data and transform it into compelling narratives. 
+        CRITICAL RULE: Never include placeholder links or identifiers like '[URL]'. 
+        All citations must be formatted as proper, clickable Markdown links. If 
+        a URL is missing from the researcher's output, do not invent one; instead, 
+        provide the most detailed textual reference possible without using 
+        placeholder tags.""",
         llm=llm,
         allow_delegation=False,
         verbose=True,
-        max_iter=2,
-        max_rpm=4
+        max_iter=1,
+        max_rpm=10
     )
 
     validator = Agent(
-        role='Validation & Citation Specialist',
-        goal='Cross-check research claims and form proper, reliable citations for every fact.',
-        backstory="""You are a meticulous fact-checker and an academic citation expert. 
-        You ensure every claim is verified and backed by proper URL sourcing, 
-        so the final output is bulletproof.""",
+        role='Structural Integrity & Citation Auditor',
+        goal='Audit research findings for logical consistency and ensure 100% citation accuracy.',
+        backstory="""You are a meticulous auditor. You cross-check every claim and 
+        every URL. Your job is to catch hallucinations and broken links before they 
+        reach the final report. You format every verified source into a clean, 
+        consistent citation style. You have zero tolerance for placeholders.""",
         llm=llm,
         allow_delegation=False,
         verbose=True,
         max_iter=2,
-        max_rpm=4
+        max_rpm=10
     )
 
     return researcher, writer, validator, provider_name

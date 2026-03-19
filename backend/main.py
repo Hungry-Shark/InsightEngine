@@ -3,7 +3,7 @@ import datetime
 import importlib
 import firebase_admin
 from firebase_admin import credentials, firestore
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,7 +20,7 @@ if not os.environ.get("GOOGLE_API_KEY") and os.environ.get("GEMINI_API_KEY"):
 app = FastAPI(title="InsightEngine API", version="1.0.0")
 
 # Allow origins from environment variable or default to localhost
-allowed_origins = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+allowed_origins: List[str] = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
 # Add the specific Vercel URL from the user's screenshot if not already there
 for url in ["https://insight-engine-007.vercel.app", "https://insight-engine-887.vercel.app"]:
     if url not in allowed_origins:
@@ -114,7 +114,7 @@ except Exception as e:
     print(f"Firebase initialization failed: {e}")
 
 # ── In-memory state (mirrors Streamlit session_state) ──────────────
-_state = {
+_state: Dict[str, Any] = {
     "chat_history": [],
     "my_stuff": [],
     "profile": {
@@ -123,16 +123,23 @@ _state = {
         "bio": "",
     },
     "settings": {
-        "model": "gemini-2.0-flash",
+        "model": "gemini-1.5-flash",
         "verbose": False,
         "theme": "Royal Purple",
     },
 }
 
+try:
+    from .kaggle_client import KaggleManager
+except (ImportError, ValueError):
+    from kaggle_client import KaggleManager
+kaggle_mgr = KaggleManager()
+
 # ── Pydantic models ────────────────────────────────────────────────
 class ResearchRequest(BaseModel):
     topic: str
     temporary: bool = False
+    provider: Optional[str] = "gemini"
 
 class SaveHistoryRequest(BaseModel):
     topic: str
@@ -193,12 +200,25 @@ def run_research(req: ResearchRequest, request: Request):
     from tasks import create_tasks
     from crewai import Crew, Process
 
-    # Strategy: try Gemini first, fallback to Groq on rate limit
+    # Strategy: Prioritize requested provider if keys exist, fallback in order
     providers = []
-    if google_api:
-        providers.append("gemini")
-    if groq_api:
+    
+    if req.provider == "kaggle-qwen":
+        providers.append("kaggle-qwen")
+    elif req.provider == "groq" and groq_api:
         providers.append("groq")
+    elif req.provider == "gemini" and google_api:
+        providers.append("gemini")
+    
+    # Fill in remaining providers for fallback
+    if google_api and "gemini" not in providers:
+        providers.append("gemini")
+    if groq_api and "groq" not in providers:
+        providers.append("groq")
+    # Always allow kaggle-qwen as a manual choice even if it doesn't have a 'google_api' style key
+    if req.provider == "kaggle-qwen" and "kaggle-qwen" not in providers:
+        providers.append("kaggle-qwen")
+
     if not providers:
         raise HTTPException(status_code=400, detail="No LLM API keys configured.")
 
@@ -252,19 +272,22 @@ def run_research(req: ResearchRequest, request: Request):
             is_rate_limit = "429" in error_str or "resource_exhausted" in error_str or "quota" in error_str
             last_error = e
 
-            if is_rate_limit and provider != providers[-1]:
+            # Fallback to next provider on ANY error (rate limit, 403 forbidden, auth error, etc)
+            if provider != providers[-1]:
                 logger.warning(
-                    f"{provider.title()} rate limit hit. Switching to next provider..."
+                    f"{provider.title()} failed with error: {str(e)}. Switching to next provider..."
                 )
                 continue
-            elif is_rate_limit:
+            
+            # If all providers failed, check if the last one was a rate limit
+            if is_rate_limit:
                 logger.error(f"All LLM providers exhausted. Final rate limit error: {str(e)}")
                 raise HTTPException(
                     status_code=429,
                     detail="An issue has occurred on our end, we are facing unusually high traffic. Please try again in a few moments."
                 )
             else:
-                logger.error(f"Internal error with provider {provider}: {str(e)}")
+                logger.error(f"Internal error with all providers. Final error: {str(e)}")
                 raise HTTPException(
                     status_code=500, 
                     detail="An unexpected issue has occurred on our end. We will be right back!"
@@ -456,3 +479,22 @@ def export_pdf(index: int, request: Request):
     except Exception as e:
         logger.error(f"PDF export failed: {e}")
         raise HTTPException(status_code=500, detail="PDF export failed due to an internal error.")
+
+# ── Kaggle Management ────────────────────────────────────────────────
+@app.post("/api/kaggle/wakeup")
+def wakeup_kaggle():
+    if not kaggle_mgr.is_configured():
+        raise HTTPException(status_code=400, detail="Kaggle is not configured. Check your .env file.")
+    success = kaggle_mgr.start_notebook()
+    if success:
+        return {"ok": True, "message": "Kaggle notebook triggered successfully."}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to trigger Kaggle notebook.")
+
+@app.get("/api/kaggle/status")
+def get_kaggle_status():
+    if not kaggle_mgr.is_configured():
+        return {"configured": False}
+    status = kaggle_mgr.get_status()
+    return {"configured": True, "status": status}
+

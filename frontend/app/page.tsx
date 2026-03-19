@@ -26,6 +26,7 @@ export default function ChatPage() {
   const [savePromptId, setSavePromptId] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [settings, setSettings] = useState<{ model: string; verbose: boolean; theme: string } | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -39,6 +40,20 @@ export default function ChatPage() {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const s = await api.getSettings(user?.uid);
+        setSettings(s);
+      } catch (err) {
+        console.error('Failed to fetch settings', err);
+      }
+    };
+    if (!authLoading) {
+      fetchSettings();
+    }
+  }, [user, authLoading]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -126,6 +141,7 @@ export default function ChatPage() {
           raw_data: item.raw_data || '',
           topic: item.topic,
           ts: item.ts || '',
+          provider: item.provider || 'unknown',
         }]);
         setTopic('');
         setError('');
@@ -198,7 +214,13 @@ export default function ChatPage() {
     abortControllerRef.current = new AbortController();
 
     try {
-      const data = await api.research(topic.trim(), user?.uid, isTemporary, abortControllerRef.current.signal);
+      const data = await api.research(
+        topic.trim(), 
+        user?.uid, 
+        isTemporary, 
+        settings?.model || 'gemini-1.5-flash',
+        abortControllerRef.current.signal
+      );
       // Append to thread instead of replacing
       setThread((prev) => [...prev, data]);
       setTopic('');
@@ -383,7 +405,7 @@ export default function ChatPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
               <p className="card-title" style={{ margin: 0 }}>Research Report</p>
               <span className="badge badge-green">✓ Research Complete</span>
-              <span className="badge badge-accent">✓ AI Verified</span>
+              <span className="badge badge-accent">✓ AI Verified ({result.provider})</span>
             </div>
             <div className="report-body">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>

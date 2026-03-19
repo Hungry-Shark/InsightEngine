@@ -1683,30 +1683,52 @@ textarea.research-input:focus {
 }
 
 .confirm-modal {
-  background: rgba(18, 18, 28, 0.92);
+  background: rgba(18, 18, 28, 0.45);
   backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-lg);
-  padding: 28px 32px;
-  max-width: 420px;
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-radius: var(--radius-xl);
+  padding: 32px;
+  max-width: 440px;
   width: 90%;
-  box-shadow: 0 16px 64px rgba(0, 0, 0, 0.5);
-  animation: modalSlideUp 0.25s ease-out;
+  box-shadow: 0 16px 64px rgba(0, 0, 0, 0.6);
+  animation: modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Shining border for modal */
+.confirm-modal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--angle) at 50% 50%, transparent 0%, transparent 60%, rgba(255,255,255,0.7) 90%, transparent 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: rotateGlint 4s linear infinite;
+  opacity: 0.8;
 }
 
 .confirm-title {
   font-family: 'Playfair Display', serif;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  position: relative;
 }
 
 .confirm-message {
-  font-size: 14px;
+  font-size: 14.5px;
   color: var(--text-secondary);
   line-height: 1.6;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
+  position: relative;
 }
 
 .confirm-actions {

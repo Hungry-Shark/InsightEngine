@@ -33,6 +33,7 @@ export interface ResearchResult {
   raw_data: string;
   topic: string;
   ts: string;
+  provider: string;
 }
 
 export interface ApiStatus {
@@ -60,10 +61,10 @@ async function req<T>(path: string, uid?: string | null, options?: RequestInit):
 export const api = {
   status: () => req<ApiStatus>('/api/status'),
 
-  research: (topic: string, uid?: string | null, temporary: boolean = false, signal?: AbortSignal) =>
+  research: (topic: string, uid?: string | null, temporary: boolean = false, provider?: string, signal?: AbortSignal) =>
     req<ResearchResult>('/api/research', uid, {
       method: 'POST',
-      body: JSON.stringify({ topic, temporary }),
+      body: JSON.stringify({ topic, temporary, provider }),
       signal
     }),
 
@@ -87,4 +88,7 @@ export const api = {
   resetSettings: (uid?: string | null) => req<{ ok: boolean }>('/api/settings/reset', uid, { method: 'POST' }),
 
   pdfUrl: (index: number) => `${API}/api/export/pdf/${index}`,
+  
+  kaggleStatus: () => req<{ configured: boolean; status?: string }>('/api/kaggle/status'),
+  wakeupKaggle: () => req<{ ok: boolean; message: string }>('/api/kaggle/wakeup', null, { method: 'POST' }),
 };

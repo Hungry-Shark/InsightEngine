@@ -15,18 +15,15 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import ConfirmModal from '@/components/ConfirmModal';
 
 const MODELS = [
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-exp',
-  'gemini-1.5-pro',
   'gemini-1.5-flash',
+  'groq',
+  'kaggle-qwen',
 ];
-
-const THEMES = ['Royal Purple', 'Midnight Blue', 'Forest Green'];
 
 export default function SettingsPage() {
   const toggleId = useId();
   const [form, setForm] = useState<Settings>({
-    model: 'gemini-2.0-flash',
+    model: 'gemini-1.5-flash',
     verbose: false,
     theme: 'Royal Purple',
   });
@@ -88,7 +85,7 @@ export default function SettingsPage() {
     <div className="page-inner">
       <h1 className="section-header">Settings</h1>
       <p className="section-sub">
-        Configure model, preferences, and data management
+        Configure model and data management
       </p>
 
       {status && (
@@ -143,27 +140,53 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* UI Preferences */}
+        {/* Kaggle AI Support */}
         <div className="glass-card">
           <div className="settings-section-icon">
             <div className="settings-icon-wrap blue">
-              <Palette size={16} />
+              <Cpu size={16} />
             </div>
-            <p className="card-title">UI Preferences</p>
+            <p className="card-title">Kaggle AI Support (Qwen2-VL)</p>
           </div>
-          <div className="form-group">
-            <label className="form-label">Theme</label>
-            <select
-              className="form-select"
-              value={form.theme}
-              onChange={(e) => setForm({ ...form, theme: e.target.value })}
+          <p className="section-sub" style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>
+            Run the Qwen2-VL model on Kaggle for free. Double check your KAGGLE_USERNAME and KAGGLE_KEY in the backend .env.
+          </p>
+          
+          <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={async () => {
+                try {
+                  const res = await api.wakeupKaggle();
+                  flash('success', res.message);
+                } catch (err: any) {
+                  flash('error', err.message);
+                }
+              }}
             >
-              {THEMES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+              <RotateCcw size={14} />
+              Wake Up Kaggle Model
+            </button>
+            
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={async () => {
+                try {
+                  const res = await api.kaggleStatus();
+                  if (res.configured) {
+                    flash('success', `Kaggle Status: ${res.status || 'Active'}`);
+                  } else {
+                    flash('error', 'Kaggle is not configured in .env');
+                  }
+                } catch (err: any) {
+                  flash('error', 'Failed to check status');
+                }
+              }}
+            >
+              Check Status
+            </button>
           </div>
         </div>
 
