@@ -1,7 +1,10 @@
+backend/tmp/
+frontend/app/SoftAuroraTemp.jsx
 node_modules/
 __pycache__/
 *.pyc
 .env
+.env.*
 venv/
 .DS_Store
 dist/

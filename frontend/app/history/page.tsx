@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Trash2,
-  Download,
   FileText,
   ChevronDown,
   ChevronUp,

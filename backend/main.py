@@ -299,14 +299,17 @@ def run_research(req: ResearchRequest, user_id: str = Depends(get_authenticated_
         try:
             logger.info(f"Starting research with provider: {provider}")
 
-            researcher, writer, validator, active_provider = create_agents(provider)
+            researcher, writer, validator, manager, active_provider = create_agents(provider)
             research_task, validate_task, write_task = create_tasks(researcher, writer, validator)
 
             insight_crew = Crew(
                 agents=[researcher, validator, writer],
                 tasks=[research_task, validate_task, write_task],
-                process=Process.sequential,
-                max_rpm=8
+                process=Process.hierarchical,
+                manager_agent=manager,
+                memory=True, # Enable dual-layer memory
+                verbose=True,
+                max_rpm=10
             )
             result = insight_crew.kickoff(inputs={"topic": req.topic})
 

@@ -63,20 +63,25 @@ export default function ChatPage() {
         console.error('Failed to fetch user data', err);
       }
     };
-    if (!authLoading) {
+    if (!authLoading && user) {
       fetchProfileData();
+    } else if (!authLoading && !user) {
+      // Clear settings/profile if user signed out
+      setSettings(null);
+      setProfile(null);
+      setError('');
     }
   }, [user, authLoading]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition; // eslint-disable-line @typescript-eslint/no-explicit-any
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = true;
         
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
           let finalTranscript = '';
           for (let i = event.resultIndex; i < event.results.length; ++i) {
             if (event.results[i].isFinal) {
@@ -125,8 +130,8 @@ export default function ChatPage() {
   }, [isTemporary, thread]);
 
   useEffect(() => {
-    const handlePrompt = (e: any) => {
-      setSavePromptId(e.detail.id);
+    const handlePrompt = (e: Event) => {
+      setSavePromptId((e as CustomEvent).detail.id);
     };
     window.addEventListener('promptSave', handlePrompt);
     return () => window.removeEventListener('promptSave', handlePrompt);
@@ -336,54 +341,83 @@ export default function ChatPage() {
       const html2pdf = html2pdfModule.default;
 
       const md = result.report;
+      // Simple MD to HTML conversion
       let html = md
         .replace(/^### (.*$)/gm, '<h3>$1</h3>')
         .replace(/^## (.*$)/gm, '<h2>$1</h2>')
         .replace(/^# (.*$)/gm, '<h1>$1</h1>')
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" style="color: #7c3aed; text-decoration: none;">$1</a>')
         .replace(/^\- (.*$)/gm, '<li>$1</li>')
         .replace(/^\d+\. (.*$)/gm, '<li>$1</li>')
         .replace(/\n{2,}/g, '</p><p>')
         .replace(/\n/g, '<br>');
+
       html = `<p>${html}</p>`;
+      // Wrap list items in <ul>
       html = html.replace(/(<li>[\s\S]*?<\/li>)+/g, '<ul>$&</ul>');
 
       const container = document.createElement('div');
       container.innerHTML = `
-        <div style="font-family: 'Segoe UI', Tahoma, sans-serif; color: #1a1a2e; padding: 48px 56px; max-width: 800px; margin: 0 auto;">
-          <div style="background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #2d1b69 100%); border-radius: 16px; padding: 40px 48px; margin-bottom: 40px; text-align: center;">
-            <h1 style="font-size: 28px; font-weight: 800; color: #ffffff; margin: 0 0 8px 0;">InsightEngine</h1>
-            <p style="font-size: 13px; color: rgba(255,255,255,0.6); margin: 0 0 20px 0; text-transform: uppercase; letter-spacing: 2px;">Research Report</p>
-            <div style="width: 60px; height: 2px; background: linear-gradient(90deg, #7c3aed, #a78bfa); margin: 0 auto 20px;"></div>
-            <h2 style="font-size: 20px; font-weight: 600; color: #e2e8f0; margin: 0;">${result.topic}</h2>
-            <p style="font-size: 12px; color: rgba(255,255,255,0.4); margin: 12px 0 0 0;">${result.ts || new Date().toLocaleDateString()}</p>
+          <div style="margin-bottom: 40px; border-bottom: 2px solid #7c3aed; padding-bottom: 24px;">
+            <p style="font-size: 11px; font-weight: 700; color: #7c3aed; text-transform: uppercase; letter-spacing: 3px; margin: 0 0 12px 0;">Intelligence Briefing</p>
+            <h1 style="font-size: 26px; font-weight: 800; color: #0f172a; margin: 0; line-height: 1.25; border: none; padding-left: 0; letter-spacing: -0.02em;">
+              Research Analysis: ${result.topic}
+            </h1>
+            <p style="font-size: 14px; color: #475569; margin-top: 16px; line-height: 1.6;">
+              This report provides a multi-dimensional synthesis of data and professional insights regarding the inquiry: 
+              <span style="color: #0f172a; font-weight: 600;">"${result.topic}"</span>.
+            </p>
+            <div style="font-size: 11px; color: #94a3b8; margin-top: 12px; font-family: monospace;">
+              ISSUED BY INSIGHTENGINE • ${result.ts || new Date().toLocaleDateString()} • REf: #IE-${Date.now().toString().slice(-6)}
+            </div>
           </div>
-          <div style="font-size: 14px; line-height: 1.8; color: #334155;">
+
+          <div style="font-size: 15px; color: #334155;">
             <style>
-              h1 { font-size: 22px; font-weight: 700; color: #0f172a; margin: 32px 0 12px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
-              h2 { font-size: 18px; font-weight: 600; color: #1e293b; margin: 28px 0 10px; }
-              h3 { font-size: 15px; font-weight: 600; color: #334155; margin: 24px 0 8px; }
-              p { margin: 0 0 12px; }
-              strong { color: #0f172a; }
-              ul { padding-left: 20px; margin: 8px 0 16px; }
-              li { margin: 4px 0; }
+              h1 { font-size: 24px; font-weight: 800; color: #0f172a; margin: 40px 0 20px; border-left: 4px solid #7c3aed; padding-left: 15px; letter-spacing: -0.01em; page-break-after: avoid; }
+              h2 { font-size: 20px; font-weight: 700; color: #1e293b; margin: 30px 0 15px; page-break-after: avoid; }
+              h3 { font-size: 17px; font-weight: 600; color: #334155; margin: 25px 0 10px; page-break-after: avoid; }
+              p { margin: 0 0 18px; line-height: 1.7; text-align: left; word-break: break-word; }
+              strong { color: #0f172a; font-weight: 700; }
+              ul { padding-left: 20px; margin: 20px 0 25px; list-style-type: disc; }
+              li { margin: 10px 0; padding-left: 5px; }
+              ul li::marker { color: #7c3aed; font-size: 1.2em; }
+              blockquote { border-left: 3px solid #e2e8f0; padding-left: 20px; font-style: italic; color: #64748b; margin: 25px 0; }
+              .page-break { page-break-before: always; }
             </style>
             ${html}
           </div>
-          <div style="margin-top: 48px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center;">
-            <p style="font-size: 11px; color: #94a3b8; margin: 0;">Generated by InsightEngine — AI-Powered Deep Research</p>
+
+          <div style="margin-top: 80px; padding-top: 30px; border-top: 1px solid #f1f5f9; text-align: center;">
+            <p style="font-size: 11px; color: #94a3b8; margin: 0; letter-spacing: 1px; text-transform: uppercase;">
+              Generated by InsightEngine AI • Deep Research Systems
+            </p>
           </div>
         </div>
       `;
 
-      html2pdf().set({
-        margin: 0,
+      const options = {
+        margin: [15, 15, 15, 15] as [number, number, number, number],
         filename: `${result.topic.slice(0, 30).replace(/\s+/g, '_')}_report.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      }).from(container).save().then(() => {
+        image: { type: 'jpeg' as const, quality: 1.0 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true, 
+          letterRendering: true,
+          scrollY: 0
+        },
+        jsPDF: { 
+          unit: 'mm' as const, 
+          format: 'a4' as const, 
+          orientation: 'portrait' as const,
+          compress: true
+        },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] as any }
+      };
+
+      html2pdf().from(container).set(options).save().then(() => {
         api.addToMyStuff({
           id: Date.now().toString(),
           type: 'pdf',

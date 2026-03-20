@@ -5,7 +5,7 @@ import {
   MessageSquarePlus,
   Search,
   Settings,
-  User,
+  User as UserIcon,
   Star,
   MessageSquareDashed,
   Clock,
@@ -15,23 +15,24 @@ import {
 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { api, HistoryEntry } from '@/lib/api';
+import { User } from 'firebase/auth';
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [recents, setRecents] = useState<HistoryEntry[]>([]);
-  const [profileName, setProfileName] = useState('User');
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   const checkUnsaved = (callback: () => void) => {
     if (sessionStorage.getItem('has_unsaved_temp') === 'true') {
       const id = Date.now().toString();
-      const handler = (e: any) => {
-        if (e.detail.id === id) {
+      const handler = (e: Event) => {
+        const customEvent = e as CustomEvent;
+        if (customEvent.detail.id === id) {
           window.removeEventListener('navResolved', handler);
-          if (e.detail.proceed) callback();
+          if (customEvent.detail.proceed) callback();
         }
       };
       window.addEventListener('navResolved', handler);
@@ -77,13 +78,8 @@ export default function Sidebar() {
   useEffect(() => {
     if (user) {
       fetchHistory();
-      api
-        .getProfile(user.uid)
-        .then((p) => setProfileName(p.name || 'User'))
-        .catch(() => {});
     } else {
       setRecents([]);
-      setProfileName('Guest');
     }
   }, [user, pathname, fetchHistory]);
 
@@ -94,12 +90,6 @@ export default function Sidebar() {
     }
   }, [user, fetchHistory]);
 
-  const initials = profileName
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
 
   return (
     <nav className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
@@ -255,7 +245,7 @@ export default function Sidebar() {
           className="nav-btn"
           onClick={() => checkUnsaved(() => router.push('/profile'))}
         >
-          <User size={18} className="nav-icon" />
+          <UserIcon size={18} className="nav-icon" />
           <span className="nav-btn-label">Profile</span>
           <span className="nav-tooltip">Profile</span>
         </button>

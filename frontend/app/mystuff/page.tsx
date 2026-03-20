@@ -115,7 +115,7 @@ export default function MyStuffPage() {
           <div className="empty-state">
             <div className="empty-icon" style={{ fontSize: '48px', marginBottom: '16px' }}>📂</div>
             <p className="empty-text">
-              No files yet — click "Download PDF" on a research report to save it here.
+              No files yet &mdash; click &quot;Download PDF&quot; on a research report to save it here.
             </p>
           </div>
         </div>

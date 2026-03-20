@@ -56,76 +56,92 @@ def _get_llm(provider="gemini"):
 def create_agents(provider="gemini"):
     """Create all agents with the given LLM provider.
 
-    Returns (researcher, writer, validator, provider_name) tuple.
+    Returns (researcher, writer, validator, manager, provider_name) tuple.
     """
     llm, provider_name = _get_llm(provider)
     logger.info(f"Creating agents with LLM provider: {provider_name}")
 
     from crewai.tools import tool
 
-    @tool("Tavily Search")
+    @tool("Tavily Intelligence Search")
     def search_tool(query: str) -> str:
-        """Useful for when you need to search the internet for information."""
+        """High-depth cognitive search. Useful for finding technical facts and verifiable breakthroughs."""
         tavily = TavilySearchResults(
-            max_results=3,
+            max_results=5,
             tavily_api_key=os.environ.get("TAVILY_API_KEY")
         )
         return tavily.run(query)
 
+    manager = Agent(
+        role='Intelligence Operations Manager',
+        goal='Oversee the complex cognitive workload of the research team to ensure 100% accurate, high-depth synthesis.',
+        backstory="""You are the strategic brain of the InsightEngine. Your job is to break 
+        down complex research goals into specialized sub-tasks, coordinate the efforts 
+        between discovery, synthesis, and validation, and ensure that the final 
+        output reflects System 2 level deep-reasoning. You audit the trajectory of 
+        decisions to catch logical gaps early.""",
+        llm=llm,
+        allow_delegation=True,
+        verbose=True,
+        memory=True
+    )
+
     researcher = Agent(
-        role='Lead Technical Researcher',
-        goal='Identify, verify, and synthesize high-priority, technically accurate information on {topic}',
-        backstory="""You are a world-class technical investigator. Your mission is to find 
-        VERIFIABLE facts. You must distinguish actual breakthroughs from marketing buzz. 
-        CRITICAL: Every fact you find MUST be linked to a real, accessible source URL. 
-        NEVER use placeholder text like '[URL]' or 'Link here'—if you cannot find a 
-        legitimate, specific URL for a point, you must either find a better source or 
-        describe the information in a way that doesn't imply a missing citation.""",
+        role='Deep Discovery Specialist (System 2 Explorer)',
+        goal='Employ Tree of Thoughts (ToT) exploration to identify, verify, and verify high-priority technical data on {topic}',
+        backstory="""You are a world-class technical investigator utilizing 'System 2' 
+        slow-reasoning. Instead of a linear search, you explore multiple research 
+        trajectories (ToT), evaluating each for technical depth and citation strength. 
+        Your mission is to find VERIFIABLE facts. If a lead is a dead end, you backtrack.
+        CRITICAL: Every fact found MUST be linked to a real, accessible source URL. 
+         halluncinations are caught by your internal reflection loop before you report findings.""",
         tools=[search_tool],
         llm=llm,
         allow_delegation=False,
         verbose=True,
-        max_iter=3,
-        max_rpm=10
+        max_iter=5,  # Increased for depth
+        max_rpm=10,
+        memory=True
     )
 
     writer = Agent(
-        role='Expert Technical Report Architect',
-        goal='Translate research data into a premium-grade markdown report with perfect structural integrity.',
-        backstory="""You are a master of communication and structural logic. You take 
-        raw technical data and transform it into compelling narratives. 
-        CRITICAL RULE: Never include placeholder links or identifiers like '[URL]'. 
-        All citations must be formatted as proper, clickable Markdown links. If 
-        a URL is missing from the researcher's output, do not invent one; instead, 
-        provide the most detailed textual reference possible without using 
-        placeholder tags.""",
-        llm=llm,
-        allow_delegation=False,
-        verbose=True,
-        max_iter=1,
-        max_rpm=10
-    )
-
-    validator = Agent(
-        role='Structural Integrity & Citation Auditor',
-        goal='Audit research findings for logical consistency and ensure 100% citation accuracy.',
-        backstory="""You are a meticulous auditor. You cross-check every claim and 
-        every URL. Your job is to catch hallucinations and broken links before they 
-        reach the final report. You format every verified source into a clean, 
-        consistent citation style. You have zero tolerance for placeholders.""",
+        role='Cognitive Synthesis Architect',
+        goal='Synthesize raw technical data into a premium markdown report with perfect structural and logical integrity.',
+        backstory="""You are a master of technical narrative and structural logic. 
+        You don't just summarize; you synthesize insights into a cohesive strategic 
+        framework. You treat the report architecture as a neuro-symbolic bridge between 
+        raw data and human understanding. MANDATORY: All citations must be proper, 
+        clickable links. Placeholder tokens like '[URL]' are strictly forbidden.""",
         llm=llm,
         allow_delegation=False,
         verbose=True,
         max_iter=2,
-        max_rpm=10
+        max_rpm=10,
+        memory=True
     )
 
-    return researcher, writer, validator, provider_name
+    validator = Agent(
+        role='Critical Reflexion Auditor',
+        goal='Perform an adversarial audit of research findings using the LLM-as-a-Judge pattern for 100% accuracy.',
+        backstory="""You are an adversarial auditor tasked with catching hallucinations. 
+        You follow the 'Act-Observe-Reflect' loop. If you find a logical gap or a 
+        missing citation, you reject the draft and force a re-discovery phase. 
+        Your standards are absolute: if it isn't verified, it doesn't exist in the report. 
+        You focus on 'System 2' oversight to ensure high-stakes technical reliability.""",
+        llm=llm,
+        allow_delegation=True,
+        verbose=True,
+        max_iter=3,
+        max_rpm=10,
+        memory=True
+    )
+
+    return researcher, writer, validator, manager, provider_name
 
 
 # Default agents (created at import time with Gemini)
 try:
-    researcher, writer, validator, _active_provider = create_agents("gemini")
+    researcher, writer, validator, manager, _active_provider = create_agents("gemini")
 except Exception as e:
     logger.warning(f"Gemini init failed ({e}), trying Groq fallback...")
-    researcher, writer, validator, _active_provider = create_agents("groq")
+    researcher, writer, validator, manager, _active_provider = create_agents("groq")

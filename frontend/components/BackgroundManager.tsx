@@ -7,8 +7,8 @@ export default function BackgroundManager() {
   const [colors, setColors] = useState({ c1: '#34d399', c2: '#3b82f6' }); // Green/Blue for nominal
 
   useEffect(() => {
-    const handleStatus = (e: any) => {
-      const status = e.detail;
+    const handleStatus = (e: Event) => {
+      const status = (e as CustomEvent).detail;
       if (status === 'green') {
         setColors({ c1: '#34d399', c2: '#3b82f6' }); // Green/Blue
       } else if (status === 'yellow') {

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { auth, googleProvider } from "@/lib/firebase";
 import { signInWithPopup, signOut, User } from "firebase/auth";
 import { api } from "@/lib/api";
+import Image from "next/image";
 import "./AuthAvatar.css";
 
 export default function AuthAvatar() {
@@ -79,7 +80,15 @@ export default function AuthAvatar() {
             title="User Profile"
           >
             {user.photoURL ? (
-              <img src={user.photoURL} alt="U" className="auth-avatar-img" referrerPolicy="no-referrer" />
+              <Image 
+                src={user.photoURL} 
+                alt="U" 
+                width={40} 
+                height={40} 
+                className="auth-avatar-img" 
+                referrerPolicy="no-referrer"
+                unoptimized
+              />
             ) : (
               <div className="auth-avatar-fallback">
                 {user.displayName?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U'}

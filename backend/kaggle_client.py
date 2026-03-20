@@ -15,20 +15,15 @@ class KaggleManager:
 
     def _get_kaggle_cmd(self):
         """Find the kaggle executable path."""
-        # Common Windows paths for local python installations
         possible_paths = [
             "kaggle", # If in PATH
-            os.path.expanduser(r"~\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\Scripts\\kaggle.exe"),
-            os.path.expanduser(r"~\\AppData\\Roaming\\Python\\Python312\\Scripts\\kaggle.exe"),
-            os.path.expanduser(r"~\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\kaggle.exe"),
+            os.path.expanduser(r"~\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\Scripts\kaggle.exe"),
+            os.path.expanduser(r"~\AppData\Roaming\Python\Python312\Scripts\kaggle.exe"),
+            os.path.expanduser(r"~\AppData\Local\Programs\Python\Python312\Scripts\kaggle.exe"),
         ]
         for p in possible_paths:
-            try:
-                # Test if command exists
-                subprocess.run([p, "--version"], capture_output=True, check=True)
+            if os.path.exists(p):
                 return p
-            except:
-                continue
         return "kaggle" # fallback
 
     def start_notebook(self):
@@ -37,29 +32,38 @@ class KaggleManager:
             print("Kaggle credentials or notebook slug not found.")
             return False
         
-        # Ensure kaggle.json is set up for the CLI if not already
-        kaggle_config_dir = os.path.expanduser("~/.kaggle")
-        os.makedirs(kaggle_config_dir, exist_ok=True)
-        with open(os.path.join(kaggle_config_dir, "kaggle.json"), "w") as f:
-            json.dump({"username": str(self.username), "key": str(self.key)}, f)
+        # Build environment for the command
+        env = os.environ.copy()
+        env["KAGGLE_USERNAME"] = str(self.username)
+        env["KAGGLE_KEY"] = str(self.key)
         
-        # Command to run the notebook
+        cmd = self._get_kaggle_cmd()
+        slug = str(self.notebook_slug)
+        
+        # Trigger via push by creating a temporary deployment folder
         try:
-            print(f"Triggering Kaggle notebook: {self.notebook_slug}...")
-            cmd = self._get_kaggle_cmd()
-            slug = str(self.notebook_slug)
-            # Try to run directly
-            subprocess.run([cmd, "notebooks", "run", slug], check=True)
-            return True
+            print(f"Triggering Kaggle notebook: {slug}...")
+            # We try to push to trigger. If we don't have local code, 
+            # we pull it first to ensure we have the latest metadata.
+            tmp_dir = os.path.join(os.getcwd(), "tmp", "kaggle_trigger")
+            os.makedirs(tmp_dir, exist_ok=True)
+            
+            # Pull with metadata to get the latest slug and configuration
+            subprocess.run([cmd, "kernels", "pull", "-p", tmp_dir, slug, "-m"], capture_output=True, env=env)
+            
+            # Now push it back to trigger a run
+            result = subprocess.run([cmd, "kernels", "push", "-p", tmp_dir], capture_output=True, text=True, env=env)
+            
+            if result.returncode == 0:
+                return True
+            else:
+                print(f"Kaggle push failed: {result.stderr}")
+                # Fallback: maybe the old notebooks run still exists or is needed?
+                # For CLI 2.0.0, push is the standard.
+                return False
         except Exception as e:
             print(f"Failed to start Kaggle notebook: {e}")
-            # Try one more time with pull if metadata is missing
-            try:
-                subprocess.run([cmd, "notebooks", "pull", "-p", "./tmp/kaggle_nb", slug], capture_output=True)
-                subprocess.run([cmd, "notebooks", "run", slug], check=True)
-                return True
-            except:
-                return False
+            return False
 
     def get_status(self):
         """Checks the status of the notebook."""
@@ -68,13 +72,19 @@ class KaggleManager:
         try:
             cmd = self._get_kaggle_cmd()
             slug = str(self.notebook_slug)
+            env = os.environ.copy()
+            env["KAGGLE_USERNAME"] = str(self.username)
+            env["KAGGLE_KEY"] = str(self.key)
             result = subprocess.run(
-                [cmd, "notebooks", "status", slug],
-                capture_output=True, text=True, check=False
+                [cmd, "kernels", "status", slug],
+                capture_output=True, text=True, check=False, env=env
             )
             if result.returncode != 0:
-                return f"Error: {result.stderr or 'Notebook not found or unauthorized'}"
-            return result.stdout.strip() or "No status returned"
+                # 404 on status might mean no runs yet.
+                if "404" in result.stderr:
+                    return "No history (Try 'Wake Up')"
+                return f"Error: {result.stderr.split(':')[-1].strip() or 'Unauthorized/Not Found'}"
+            return result.stdout.strip() or "Idle"
         except Exception as e:
             return f"Exception: {str(e)}"
 
