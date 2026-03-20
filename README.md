@@ -70,3 +70,5 @@ InsightEngine is built with **visual excellence** in mind. We avoid generic visu
 <div align="center">
   Built with ❤️ by Hungry-Shark
 </div>
+
+
