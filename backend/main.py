@@ -314,7 +314,6 @@ def run_research(req: ResearchRequest, user_id: str = Depends(get_authenticated_
                 tasks=[research_task, validate_task, write_task],
                 process=Process.hierarchical,
                 manager_agent=manager,
-                memory=True, # Enable dual-layer memory
                 verbose=True,
                 max_rpm=10
             )

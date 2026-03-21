@@ -83,8 +83,7 @@ def create_agents(provider="gemini"):
         decisions to catch logical gaps early.""",
         llm=llm,
         allow_delegation=True,
-        verbose=True,
-        memory=True
+        verbose=True
     )
 
     researcher = Agent(
@@ -101,8 +100,7 @@ def create_agents(provider="gemini"):
         allow_delegation=False,
         verbose=True,
         max_iter=5,  # Increased for depth
-        max_rpm=10,
-        memory=True
+        max_rpm=10
     )
 
     writer = Agent(
@@ -117,8 +115,7 @@ def create_agents(provider="gemini"):
         allow_delegation=False,
         verbose=True,
         max_iter=2,
-        max_rpm=10,
-        memory=True
+        max_rpm=10
     )
 
     validator = Agent(
@@ -133,8 +130,7 @@ def create_agents(provider="gemini"):
         allow_delegation=True,
         verbose=True,
         max_iter=3,
-        max_rpm=10,
-        memory=True
+        max_rpm=10
     )
 
     return researcher, writer, validator, manager, provider_name
