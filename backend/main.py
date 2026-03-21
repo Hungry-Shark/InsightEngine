@@ -511,8 +511,26 @@ def get_settings(user_id: str = Depends(get_authenticated_user)):
     return _state["settings"]
 
 
+@app.put("/api/settings")
+def update_settings(body: SettingsUpdate, user_id: str = Depends(get_authenticated_user)):
     if db:
-        db.collection("users").document(user_id).set({"settings": _state["settings"]}, merge=True)
+        db.collection("users").document(user_id).set({"settings": body.dict()}, merge=True)
+    else:
+        _state["settings"] = body.dict()
+    return {"ok": True}
+
+
+@app.post("/api/settings/reset")
+def reset_settings(user_id: str = Depends(get_authenticated_user)):
+    default_settings = {
+        "model": "gemini-1.5-flash",
+        "verbose": False,
+        "theme": "Royal Purple"
+    }
+    if db:
+        db.collection("users").document(user_id).set({"settings": default_settings}, merge=True)
+    else:
+        _state["settings"] = default_settings
     return {"ok": True}
 
 # ── Collaboration ───────────────────────────────────────────────────
