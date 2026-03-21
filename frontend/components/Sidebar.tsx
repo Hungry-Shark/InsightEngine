@@ -25,6 +25,12 @@ export default function Sidebar() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
+  const collapseOnMobile = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setCollapsed(true);
+    }
+  };
+
   const checkUnsaved = (callback: () => void) => {
     if (sessionStorage.getItem('has_unsaved_temp') === 'true') {
       const id = Date.now().toString();
@@ -32,12 +38,16 @@ export default function Sidebar() {
         const customEvent = e as CustomEvent;
         if (customEvent.detail.id === id) {
           window.removeEventListener('navResolved', handler);
-          if (customEvent.detail.proceed) callback();
+          if (customEvent.detail.proceed) {
+            collapseOnMobile();
+            callback();
+          }
         }
       };
       window.addEventListener('navResolved', handler);
       window.dispatchEvent(new CustomEvent('promptSave', { detail: { id } }));
     } else {
+      collapseOnMobile();
       callback();
     }
   };

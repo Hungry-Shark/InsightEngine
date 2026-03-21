@@ -2049,6 +2049,110 @@ a {
     flex-direction: column;
     align-items: center;
   }
+
+  /* ── Signup / Landing Modal Mobile Fix ── */
+  .landing-modal-overlay {
+    padding: 16px;
+    align-items: center;
+  }
+  .landing-modal-window {
+    aspect-ratio: unset;
+    max-width: 100%;
+    width: 100%;
+    min-height: auto;
+    border-radius: 24px;
+    background: rgba(15, 15, 25, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 16px;
+  }
+  .landing-video-bg {
+    display: none;
+  }
+  .landing-content-overlay {
+    display: none;
+  }
+  .landing-left-info,
+  .landing-right-info,
+  .landing-side-pill,
+  .landing-bg-number-large,
+  .landing-bottom-stats {
+    display: none !important;
+  }
+  .auth-card-landing-fixed {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    width: 100%;
+    max-width: 340px;
+    margin: 0 auto;
+  }
+
+  /* ── Sidebar overlay backdrop on mobile ── */
+  .sidebar:not(.collapsed)::after {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: var(--sidebar-w);
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 99;
+  }
+
+  /* ── Performance: optimized GPU effects for mobile ── */
+  /* Slower glint animation to reduce GPU repaints */
+  .glass-card::before {
+    animation: rotateGlint 8s linear infinite;
+    opacity: 0.5;
+  }
+  .confirm-modal::before {
+    animation: rotateGlint 8s linear infinite;
+    opacity: 0.5;
+  }
+  /* Reduced blur radii across the board */
+  .frosted-glass {
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .glass-card {
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .sidebar {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .landing-modal-overlay {
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .confirm-overlay {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  .auth-card-landing-fixed {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  /* Smaller, lighter bg-orbs */
+  .bg-orb {
+    filter: blur(60px);
+    opacity: 0.3;
+  }
+  .bg-orb--1 { width: 300px; height: 300px; }
+  .bg-orb--2 { width: 250px; height: 250px; }
+  .bg-orb--3 { width: 200px; height: 200px; }
+  /* Lighter noise texture */
+  .bg-noise {
+    opacity: 0.5;
+  }
+  .gemini-input-wrapper {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
 }
 
 @media (max-width: 480px) {

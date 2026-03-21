@@ -16,6 +16,10 @@ interface SoftAuroraProps {
   colorSpeed?: number;
   enableMouseInteraction?: boolean;
   mouseInfluence?: number;
+  /** Canvas resolution multiplier (0.0-1.0). Lower = faster. Default 1.0 */
+  quality?: number;
+  /** Max frames per second. Default 60 */
+  maxFps?: number;
 }
 
 function hexToVec3(hex: string): [number, number, number] {
@@ -37,6 +41,11 @@ void main() {
 }
 `;
 
+/*
+  Optimized fragment shader:
+  - uMaxOctaves uniform controls loop early-exit (2 on mobile, 3 on desktop)
+  - Loop bound stays constant for GPU compatibility, but breaks early
+*/
 const fragmentShader = `
 precision highp float;
 
@@ -57,6 +66,7 @@ uniform float uColorSpeed;
 uniform vec2 uMouse;
 uniform float uMouseInfluence;
 uniform bool uEnableMouse;
+uniform float uMaxOctaves;
 
 #define TAU 6.28318
 
@@ -131,7 +141,9 @@ float auroraGlow(float t, vec2 shift) {
   float amp = uNoiseAmp;
   vec2 samplePos = uv * uScale;
 
+  // Loop bound is constant (GPU-safe), but early-exits via uMaxOctaves
   for (float i = 0.0; i < 3.0; i += 1.0) {
+    if (i >= uMaxOctaves) break;
     noiseVal += perlin3D(amp, freq, samplePos.x, samplePos.y, t);
     amp *= uOctaveDecay;
     freq *= 2.0;
@@ -174,7 +186,9 @@ export default function SoftAurora({
   layerOffset = 0,
   colorSpeed = 1.0,
   enableMouseInteraction = true,
-  mouseInfluence = 0.25
+  mouseInfluence = 0.25,
+  quality = 1.0,
+  maxFps = 60
 }: SoftAuroraProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const targetColorsRef = useRef({
@@ -192,6 +206,14 @@ export default function SoftAurora({
   useEffect(() => {
     if (!containerRef.current) return;
     const container = containerRef.current;
+
+    // Clamp quality between 0.1 and 1.0
+    const q = Math.max(0.1, Math.min(1.0, quality));
+    // Determine octave count based on quality
+    const octaves = q < 0.6 ? 2.0 : 3.0;
+    // Frame interval for throttling
+    const frameInterval = 1000 / maxFps;
+
     const renderer = new Renderer({ alpha: true, premultipliedAlpha: false });
     const gl = renderer.gl;
     gl.clearColor(0, 0, 0, 0);
@@ -209,7 +231,6 @@ export default function SoftAurora({
         uSpeed: { value: speed },
         uScale: { value: scale },
         uBrightness: { value: brightness },
-        // Setup initial uniform values; they will be interpolated in update loop
         uColor1: { value: new Float32Array(targetColorsRef.current.c1) },
         uColor2: { value: new Float32Array(targetColorsRef.current.c2) },
         uNoiseFreq: { value: noiseFrequency },
@@ -221,7 +242,8 @@ export default function SoftAurora({
         uColorSpeed: { value: colorSpeed },
         uMouse: { value: new Float32Array([0.5, 0.5]) },
         uMouseInfluence: { value: mouseInfluence },
-        uEnableMouse: { value: enableMouseInteraction }
+        uEnableMouse: { value: enableMouseInteraction },
+        uMaxOctaves: { value: octaves }
       }
     });
 
@@ -240,11 +262,18 @@ export default function SoftAurora({
     }
 
     function resize() {
-      renderer.setSize(container.offsetWidth, container.offsetHeight);
-      program.uniforms.uResolution.value = [gl.canvas.width, gl.canvas.height, gl.canvas.width / gl.canvas.height];
+      // Render at reduced resolution, CSS scales it up
+      const w = Math.round(container.offsetWidth * q);
+      const h = Math.round(container.offsetHeight * q);
+      renderer.setSize(w, h);
+      program.uniforms.uResolution.value = [w, h, w / h];
     }
     window.addEventListener('resize', resize);
     resize();
+
+    // Scale canvas up via CSS to fill container
+    gl.canvas.style.width = '100%';
+    gl.canvas.style.height = '100%';
     container.appendChild(gl.canvas);
 
     if (enableMouseInteraction) {
@@ -253,9 +282,16 @@ export default function SoftAurora({
     }
 
     let animationFrameId: number;
+    let lastFrameTime = 0;
 
     function update(time: number) {
       animationFrameId = requestAnimationFrame(update);
+
+      // Frame rate throttling
+      const delta = time - lastFrameTime;
+      if (delta < frameInterval) return;
+      lastFrameTime = time - (delta % frameInterval);
+
       program.uniforms.uTime.value = time * 0.001;
 
       if (enableMouseInteraction) {
@@ -274,7 +310,7 @@ export default function SoftAurora({
       const c1 = program.uniforms.uColor1.value;
       const c2 = program.uniforms.uColor2.value;
       
-      const lerpSpeed = 0.05; // Quick curve
+      const lerpSpeed = 0.05;
       c1[0] += (t1[0] - c1[0]) * lerpSpeed;
       c1[1] += (t1[1] - c1[1]) * lerpSpeed;
       c1[2] += (t1[2] - c1[2]) * lerpSpeed;
@@ -297,7 +333,7 @@ export default function SoftAurora({
       container.removeChild(gl.canvas);
       gl.getExtension('WEBGL_lose_context')?.loseContext();
     };
-  }, [speed, scale, brightness, noiseFrequency, noiseAmplitude, bandHeight, bandSpread, octaveDecay, layerOffset, colorSpeed, enableMouseInteraction, mouseInfluence]);
+  }, [speed, scale, brightness, noiseFrequency, noiseAmplitude, bandHeight, bandSpread, octaveDecay, layerOffset, colorSpeed, enableMouseInteraction, mouseInfluence, quality, maxFps]);
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
 }
