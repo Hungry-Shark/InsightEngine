@@ -36,6 +36,7 @@ class KaggleManager:
         env = os.environ.copy()
         env["KAGGLE_USERNAME"] = str(self.username)
         env["KAGGLE_KEY"] = str(self.key)
+        env["PYTHONUTF8"] = "1"
         
         cmd = self._get_kaggle_cmd()
         slug = str(self.notebook_slug)

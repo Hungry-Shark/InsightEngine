@@ -15,7 +15,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import ConfirmModal from '@/components/ConfirmModal';
 
 const MODELS = [
-  'gemini-1.5-flash',
+  'gemini-2.5-flash',
   'groq',
   'kaggle-qwen',
 ];
@@ -23,7 +23,7 @@ const MODELS = [
 export default function SettingsPage() {
   const toggleId = useId();
   const [form, setForm] = useState<Settings>({
-    model: 'gemini-1.5-flash',
+    model: 'gemini-2.5-flash',
     verbose: false,
     theme: 'Royal Purple',
   });

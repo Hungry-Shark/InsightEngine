@@ -25,6 +25,7 @@ def _get_llm(provider="gemini"):
             model="groq/llama-3.3-70b-versatile",
             temperature=0.5,
             api_key=groq_key,
+            max_tokens=2048,
         )
         return llm, "groq"
     elif provider == "kaggle-qwen":
@@ -46,7 +47,7 @@ def _get_llm(provider="gemini"):
         if not google_key:
             raise RuntimeError("No GOOGLE_API_KEY or GEMINI_API_KEY found in .env.")
         llm = LLM(
-            model="gemini/gemini-1.5-flash",
+            model="gemini/gemini-2.5-flash",
             temperature=0.7,
             api_key=google_key,
         )

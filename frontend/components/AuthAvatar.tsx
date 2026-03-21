@@ -11,15 +11,20 @@ export default function AuthAvatar() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [avatarSrc, setAvatarSrc] = useState<string>("");
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (u) => {
       setUser(u);
       setLoading(false);
+      setAvatarSrc(u?.photoURL || "");
       if (u) {
         // Sync with backend
         try {
           const profile = await api.getProfile(u.uid);
+          if (profile.picture) {
+            setAvatarSrc(profile.picture);
+          }
           await api.updateProfile({
             ...profile,
             name: u.displayName || profile.name || "User",
@@ -79,9 +84,9 @@ export default function AuthAvatar() {
             className={`auth-profile-btn ${dropdownOpen ? 'active' : ''}`}
             title="User Profile"
           >
-            {user.photoURL ? (
+            {avatarSrc ? (
               <Image 
-                src={user.photoURL} 
+                src={avatarSrc} 
                 alt="U" 
                 width={40} 
                 height={40} 

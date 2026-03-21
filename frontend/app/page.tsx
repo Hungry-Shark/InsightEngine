@@ -308,7 +308,7 @@ export default function ChatPage() {
         topic.trim(), 
         user?.uid, 
         isTemporary, 
-        settings?.model || 'gemini-1.5-flash',
+        settings?.model || 'gemini-2.5-flash',
         abortControllerRef.current.signal
       );
       // Append to thread instead of replacing

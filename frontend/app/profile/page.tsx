@@ -13,18 +13,23 @@ export default function ProfilePage() {
   const [apiStatus, setApiStatus] = useState({ google_api: false, tavily_api: false });
   const [reportCount, setReportCount] = useState(0);
   const [user, setUser] = useState<User | null>(null);
-  const [imageSrc, setImageSrc] = useState("https://plus.unsplash.com/premium_photo-1689539137236-b68e436248de?q=80&w=800&auto=format&fit=crop");
+  const [imageSrc, setImageSrc] = useState("");
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       if (u) {
+        setImageSrc(u.photoURL || "https://plus.unsplash.com/premium_photo-1689539137236-b68e436248de?q=80&w=800&auto=format&fit=crop");
         api.getProfile(u.uid).then((d) => {
           setForm({
             name: d.name || u.displayName || 'User',
             email: d.email || u.email || '',
-            bio: d.bio || 'Member'
+            bio: d.bio || 'Member',
+            picture: d.picture
           });
+          if (d.picture) {
+            setImageSrc(d.picture);
+          }
         }).catch(() => {});
         api.getHistory(u.uid).then((d) => setReportCount(d.history.length)).catch(() => {});
       }
@@ -49,7 +54,9 @@ export default function ProfilePage() {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImageSrc(reader.result as string);
+        const base64string = reader.result as string;
+        setImageSrc(base64string);
+        setForm(prevForm => ({ ...prevForm, picture: base64string }));
       };
       reader.readAsDataURL(file);
     }
@@ -72,7 +79,7 @@ export default function ProfilePage() {
         {/* Column 1: Reflective Card (Left) */}
         <div style={{ flexShrink: 0, width: '100%', maxWidth: '380px' }}>
           <ReflectiveCard
-            imageSrc={imageSrc}
+            imageSrc={imageSrc || "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="}
             userName={form.name.toUpperCase()}
             userRole={form.bio ? form.bio.toUpperCase() : 'USER'}
             overlayColor="rgba(0, 0, 0, 0)"
