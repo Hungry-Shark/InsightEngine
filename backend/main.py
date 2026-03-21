@@ -139,7 +139,7 @@ _state: Dict[str, Any] = {
         "token": "",
     },
     "settings": {
-        "model": "gemini-1.5-flash",
+        "model": "gemini-2.5-flash",
         "verbose": False,
         "theme": "Royal Purple",
     },
@@ -242,6 +242,13 @@ def get_status():
         "tavily_api": tavily_ok,
     }
 
+@app.get("/api/diag_firebase")
+def diag_firebase():
+    global db
+    if db:
+        return {"status": "Connected to Firestore"}
+    else:
+        return {"status": "Fell back to in-memory dictionary. FIREBASE_CREDENTIALS_BASE64 may be invalid."}
 
 @app.post("/api/research")
 def run_research(req: ResearchRequest, user_id: str = Depends(get_authenticated_user)):
@@ -567,7 +574,7 @@ def join_by_token(token: str, user_id: str = Depends(get_authenticated_user)):
 @app.post("/api/settings/reset")
 def reset_settings(user_id: str = Depends(get_authenticated_user)):
     _state["settings"] = {
-        "model": "gemini-1.5-flash",
+        "model": "gemini-2.5-flash",
         "verbose": False,
         "theme": "Royal Purple",
     }
