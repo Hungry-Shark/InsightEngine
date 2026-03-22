@@ -1,4 +1,4 @@
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 export interface HistoryEntry {
   topic: string;
@@ -93,8 +93,8 @@ export const api = {
 
   pdfUrl: (index: number) => `${API}/api/export/pdf/${index}`,
   
-  kaggleStatus: () => req<{ configured: boolean; status?: string }>('/api/kaggle/status'),
-  wakeupKaggle: () => req<{ ok: boolean; message: string }>('/api/kaggle/wakeup', null, { method: 'POST' }),
+  kaggleStatus: (model: string) => req<{ configured: boolean; status?: string }>(`/api/kaggle/status?model=${model}`),
+  wakeupKaggle: (model: string) => req<{ ok: boolean; message: string }>(`/api/kaggle/wakeup?model=${model}`, null, { method: 'POST' }),
 
   getWsChatUrl: (convId: string) => `${WS_API}/ws/chat/${convId}`,
 };

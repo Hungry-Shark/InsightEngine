@@ -204,7 +204,7 @@ export default function ChatPage() {
   const handleJoinByToken = async (token: string) => {
     try {
       setLoading(true);
-      const host = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const host = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
       const res = await (fetch(`${host}/api/collaboration/join/${token}`).then(r => r.json()));
       
       if (res.ok) {

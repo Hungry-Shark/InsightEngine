@@ -13,6 +13,13 @@ class KaggleManager:
     def is_configured(self) -> bool:
         return bool(self.username and self.key)
 
+    def set_model_slug(self, model: str):
+        if model == "kaggle-internvl38b":
+            self.notebook_slug = f"{self.username}/internvl38b-server" if self.username else None
+        else:
+            self.notebook_slug = f"{self.username}/internvl-server" if self.username else None
+
+
     def _get_kaggle_cmd(self):
         """Find the kaggle executable path."""
         possible_paths = [

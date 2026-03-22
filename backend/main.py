@@ -284,6 +284,8 @@ def run_research(req: ResearchRequest, user_id: str = Depends(get_authenticated_
     
     if req.provider == "kaggle-qwen":
         providers.append("kaggle-qwen")
+    elif req.provider == "kaggle-internvl38b":
+        providers.append("kaggle-internvl38b")
     elif req.provider == "groq" and groq_api:
         providers.append("groq")
     elif req.provider == "gemini" and google_api:
@@ -294,9 +296,11 @@ def run_research(req: ResearchRequest, user_id: str = Depends(get_authenticated_
         providers.append("gemini")
     if groq_api and "groq" not in providers:
         providers.append("groq")
-    # Always allow kaggle-qwen as a manual choice even if it doesn't have a 'google_api' style key
+    # Always allow kaggle providers as a manual choice
     if req.provider == "kaggle-qwen" and "kaggle-qwen" not in providers:
         providers.append("kaggle-qwen")
+    if req.provider == "kaggle-internvl38b" and "kaggle-internvl38b" not in providers:
+        providers.append("kaggle-internvl38b")
 
     if not providers:
         raise HTTPException(status_code=400, detail="No LLM API keys configured.")
@@ -609,17 +613,19 @@ def export_pdf(index: int, user_id: str = Depends(get_authenticated_user)):
 
 # ── Kaggle Management ────────────────────────────────────────────────
 @app.post("/api/kaggle/wakeup")
-def wakeup_kaggle():
+def wakeup_kaggle(model: str = "kaggle-qwen"):
+    kaggle_mgr.set_model_slug(model)
     if not kaggle_mgr.is_configured():
         raise HTTPException(status_code=400, detail="Kaggle is not configured. Check your .env file.")
     success = kaggle_mgr.start_notebook()
     if success:
-        return {"ok": True, "message": "Kaggle notebook triggered successfully."}
+        return {"ok": True, "message": f"Kaggle notebook for {model} triggered successfully."}
     else:
         raise HTTPException(status_code=500, detail="Failed to trigger Kaggle notebook.")
 
 @app.get("/api/kaggle/status")
-def get_kaggle_status():
+def get_kaggle_status(model: str = "kaggle-qwen"):
+    kaggle_mgr.set_model_slug(model)
     if not kaggle_mgr.is_configured():
         return {"configured": False}
     status = kaggle_mgr.get_status()

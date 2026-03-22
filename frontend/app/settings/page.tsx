@@ -18,6 +18,7 @@ const MODELS = [
   'gemini-2.5-flash',
   'groq',
   'kaggle-qwen',
+  'kaggle-internvl38b',
 ];
 
 export default function SettingsPage() {
@@ -140,57 +141,47 @@ export default function SettingsPage() {
               <span className="toggle-switch" />
             </label>
           </div>
+          
+          {form.model.startsWith('kaggle') && (
+            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={async () => {
+                  try {
+                    const res = await api.wakeupKaggle(form.model);
+                    flash('success', res.message);
+                  } catch (err: any) {
+                    flash('error', err.message);
+                  }
+                }}
+              >
+                <RotateCcw size={14} />
+                Wake Up {form.model === 'kaggle-internvl38b' ? '38B' : '7B'} Model
+              </button>
+              
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={async () => {
+                  try {
+                    const res = await api.kaggleStatus(form.model);
+                    if (res.configured) {
+                      flash('success', `Status: ${res.status || 'Active'}`);
+                    } else {
+                      flash('error', 'Kaggle is not configured in .env');
+                    }
+                  } catch (err: any) {
+                    flash('error', 'Failed to check status');
+                  }
+                }}
+              >
+                Check Status
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Kaggle AI Support */}
-        <div className="glass-card">
-          <div className="settings-section-icon">
-            <div className="settings-icon-wrap blue">
-              <Cpu size={16} />
-            </div>
-            <p className="card-title">Kaggle AI Support (Qwen2-VL)</p>
-          </div>
-          <p className="section-sub" style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>
-            Run the Qwen2-VL model on Kaggle for free. Double check your KAGGLE_USERNAME and KAGGLE_KEY in the backend .env.
-          </p>
-          
-          <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={async () => {
-                try {
-                  const res = await api.wakeupKaggle();
-                  flash('success', res.message);
-                } catch (err: any) {
-                  flash('error', err.message);
-                }
-              }}
-            >
-              <RotateCcw size={14} />
-              Wake Up Kaggle Model
-            </button>
-            
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={async () => {
-                try {
-                  const res = await api.kaggleStatus();
-                  if (res.configured) {
-                    flash('success', `Kaggle Status: ${res.status || 'Active'}`);
-                  } else {
-                    flash('error', 'Kaggle is not configured in .env');
-                  }
-                } catch (err: any) {
-                  flash('error', 'Failed to check status');
-                }
-              }}
-            >
-              Check Status
-            </button>
-          </div>
-        </div>
 
         {/* Save / Reset */}
         <div

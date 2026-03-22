@@ -43,6 +43,20 @@ def _get_llm(provider="gemini"):
             temperature=0.7,
         )
         return llm, "kaggle-qwen"
+    elif provider == "kaggle-internvl38b":
+        kaggle_38b_url = os.environ.get("KAGGLE_INTERNVL38B_URL")
+        if not kaggle_38b_url:
+            raise RuntimeError(
+                "No KAGGLE_INTERNVL38B_URL found in .env. "
+                "Run the InternVL2.5-38B Kaggle notebook and update the URL."
+            )
+        llm = LLM(
+            model="openai/internvl2.5-38b",
+            base_url=f"{kaggle_38b_url.rstrip('/')}/v1",
+            api_key="none",
+            temperature=0.7,
+        )
+        return llm, "kaggle-internvl38b"
     else:
         if not google_key:
             raise RuntimeError("No GOOGLE_API_KEY or GEMINI_API_KEY found in .env.")
