@@ -225,6 +225,7 @@ class ProfileUpdate(BaseModel):
     bio: str
     picture: Optional[str] = ""
     token: Optional[str] = ""
+    joined_rooms: Optional[List[Dict[str, str]]] = []
 
 class SettingsUpdate(BaseModel):
     model: str
@@ -501,7 +502,8 @@ def update_profile(body: ProfileUpdate, user_id: str = Depends(get_authenticated
         "email": body.email,
         "bio": body.bio,
         "picture": body.picture,
-        "token": body.token if body.token else generate_user_token()
+        "token": body.token if body.token else generate_user_token(),
+        "joined_rooms": body.joined_rooms
     }
     if db:
         db.collection("users").document(user_id).set({"profile": profile}, merge=True)

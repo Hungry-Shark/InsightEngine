@@ -170,7 +170,7 @@ export default function ChatPage() {
     }
   }, []);
 
-  const connectToRoom = useCallback((token: string) => {
+  const connectToRoom = useCallback((token: string, silent: boolean = false) => {
     if (wsRef.current) wsRef.current.close();
     
     const url = api.getWsChatUrl(token);
@@ -179,23 +179,29 @@ export default function ChatPage() {
     socket.onopen = () => {
       console.log("Connected to room:", token);
       setRoomToken(token);
-      setShowChat(true);
-      socket.send(JSON.stringify({
-        type: "info",
-        text: `${profile?.name || 'Someone'} joined the room.`
-      }));
+      if (!silent) {
+        setShowChat(true);
+        socket.send(JSON.stringify({
+          type: "info",
+          text: `${profile?.name || 'Someone'} joined the room.`
+        }));
+      }
     };
     
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === "chat" || data.type === "info") {
         setChatMessages(prev => [...prev, data]);
+        setShowChat(true);
       }
     };
     
     socket.onclose = () => {
       console.log("Disconnected from room");
       setRoomToken(null);
+      if (wsRef.current === socket) {
+        wsRef.current = null;
+      }
     };
     
     wsRef.current = socket;
@@ -204,8 +210,7 @@ export default function ChatPage() {
   const handleJoinByToken = async (token: string) => {
     try {
       setLoading(true);
-      const host = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-      const res = await (fetch(`${host}/api/collaboration/join/${token}`).then(r => r.json()));
+      const res = await api.joinRoom(token, user?.uid);
       
       if (res.ok) {
         if (res.research) {
@@ -214,6 +219,19 @@ export default function ChatPage() {
         connectToRoom(token);
         setShowCollabModal(false);
         setError('');
+        
+        if (profile && res.host_name) {
+          const newRoom = { token, name: res.host_name, ts: new Date().toISOString() };
+          const currentRooms = profile.joined_rooms || [];
+          if (!currentRooms.find(r => r.token === token)) {
+            const updatedProfile = { 
+              ...profile, 
+              joined_rooms: [newRoom, ...currentRooms]
+            };
+            setProfile(updatedProfile);
+            api.updateProfile(updatedProfile, user?.uid).catch(console.error);
+          }
+        }
       } else {
         setError("Invalid Room ID or research not found.");
       }
@@ -236,6 +254,12 @@ export default function ChatPage() {
       }));
     }
   };
+
+  useEffect(() => {
+    if (profile?.token && !wsRef.current) {
+      connectToRoom(profile.token, true);
+    }
+  }, [profile?.token, connectToRoom]);
 
   useEffect(() => {
     loadFromSession();

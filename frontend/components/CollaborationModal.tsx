@@ -87,6 +87,29 @@ export default function CollaborationModal({ open, onClose, profile, onJoin, onC
               </button>
             </div>
           </div>
+
+          {profile.joined_rooms && profile.joined_rooms.length > 0 && (
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '24px', marginTop: '24px' }}>
+              <label className="form-label" style={{ opacity: 0.7, fontSize: '0.85rem' }}>Previously Joined</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px', maxHeight: '150px', overflowY: 'auto' }} className="custom-scrollbar">
+                {profile.joined_rooms.map((room, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px 16px', borderRadius: '12px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '0.9rem', color: 'white', fontWeight: 500 }}>{room.name}'s Room</span>
+                      <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>ID: {room.token}</span>
+                    </div>
+                    <button 
+                      className="btn-frosted-join" 
+                      style={{ padding: '6px 16px', fontSize: '0.8rem' }}
+                      onClick={() => onJoin(room.token)}
+                    >
+                      Join
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

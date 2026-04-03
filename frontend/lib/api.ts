@@ -18,12 +18,19 @@ export interface MyStuffItem {
 
 const WS_API = API.replace('http', 'ws');
 
+export interface JoinedRoom {
+  token: string;
+  name: string;
+  ts: string;
+}
+
 export interface Profile {
   name: string;
   email: string;
   bio: string;
   picture?: string;
   token?: string;
+  joined_rooms?: JoinedRoom[];
 }
 
 export interface Settings {
@@ -97,4 +104,7 @@ export const api = {
   wakeupKaggle: (model: string) => req<{ ok: boolean; message: string }>(`/api/kaggle/wakeup?model=${model}`, null, { method: 'POST' }),
 
   getWsChatUrl: (convId: string) => `${WS_API}/ws/chat/${convId}`,
+
+  joinRoom: (token: string, uid?: string | null) => 
+    req<any>(`/api/collaboration/join/${token}`, uid),
 };
