@@ -174,12 +174,17 @@ class ConnectionManager:
         if conv_id not in self.active_connections:
             self.active_connections[conv_id] = []
         self.active_connections[conv_id].append(websocket)
+        await self.broadcast({"type": "userCount", "count": len(self.active_connections[conv_id])}, conv_id)
 
-    def disconnect(self, websocket: WebSocket, conv_id: str):
+    async def disconnect(self, websocket: WebSocket, conv_id: str):
         if conv_id in self.active_connections:
-            self.active_connections[conv_id].remove(websocket)
-            if conv_id in self.active_connections:
+            if websocket in self.active_connections[conv_id]:
+                self.active_connections[conv_id].remove(websocket)
+            count = len(self.active_connections[conv_id])
+            if count == 0:
                 self.active_connections.pop(conv_id, None)
+            else:
+                await self.broadcast({"type": "userCount", "count": count}, conv_id)
 
     async def broadcast(self, message: dict, conv_id: str):
         if conv_id in self.active_connections:
@@ -201,10 +206,10 @@ async def websocket_endpoint(websocket: WebSocket, conv_id: str):
             data = await websocket.receive_json()
             await manager.broadcast(data, conv_id)
     except WebSocketDisconnect:
-        manager.disconnect(websocket, conv_id)
+        await manager.disconnect(websocket, conv_id)
     except Exception as e:
         print(f"Websocket error: {e}")
-        manager.disconnect(websocket, conv_id)
+        await manager.disconnect(websocket, conv_id)
 
 # ── Pydantic models ────────────────────────────────────────────────
 class ResearchRequest(BaseModel):

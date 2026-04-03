@@ -11,15 +11,19 @@ export interface ChatMessage {
   ts?: string;
 }
 
+import { Users } from "lucide-react";
+
 interface CollaborationChatProps {
   messages: ChatMessage[];
   onSendMessage: (text: string) => void;
   onClose: () => void;
   currentUser: { name: string; picture?: string };
   roomName: string;
+  activeUsersCount?: number;
+  onLeave?: () => void;
 }
 
-export default function CollaborationChat({ messages, onSendMessage, onClose, currentUser, roomName }: CollaborationChatProps) {
+export default function CollaborationChat({ messages, onSendMessage, onClose, currentUser, roomName, activeUsersCount, onLeave }: CollaborationChatProps) {
   const [inputText, setInputText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -43,8 +47,25 @@ export default function CollaborationChat({ messages, onSendMessage, onClose, cu
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <MessageSquare size={16} className="text-secondary" style={{ opacity: 0.8 }} />
           <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>Room: {roomName}</h3>
+          {activeUsersCount !== undefined && (
+            <div style={{ 
+              display: 'flex', alignItems: 'center', gap: '4px', 
+              background: 'rgba(255,255,255,0.1)', padding: '2px 8px', 
+              borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.8)' 
+            }}>
+              <Users size={12} />
+              <span>{activeUsersCount}</span>
+            </div>
+          )}
         </div>
-        <button onClick={onClose} className="chat-close-btn"><X size={16} /></button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {onLeave && (
+            <button onClick={onLeave} className="btn-secondary" style={{ padding: '4px 10px', fontSize: '0.75rem', borderRadius: '4px', minHeight: 'unset', color: '#f87171', border: '1px solid rgba(248,113,113,0.3)', background: 'rgba(248,113,113,0.1)' }}>
+              Leave
+            </button>
+          )}
+          <button onClick={onClose} className="chat-close-btn"><X size={16} /></button>
+        </div>
       </div>
 
       <div className="chat-body" ref={scrollRef}>

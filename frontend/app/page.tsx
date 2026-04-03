@@ -36,6 +36,7 @@ export default function ChatPage() {
   const [showChat, setShowChat] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [roomToken, setRoomToken] = useState<string | null>(null);
+  const [activeUsersCount, setActiveUsersCount] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -181,16 +182,14 @@ export default function ChatPage() {
       setRoomToken(token);
       if (!silent) {
         setShowChat(true);
-        socket.send(JSON.stringify({
-          type: "info",
-          text: `${profile?.name || 'Someone'} joined the room.`
-        }));
       }
     };
     
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      if (data.type === "chat" || data.type === "info") {
+      if (data.type === "userCount") {
+        setActiveUsersCount(data.count);
+      } else if (data.type === "chat" || data.type === "info") {
         setChatMessages(prev => [...prev, data]);
         setShowChat(true);
       }
@@ -202,6 +201,7 @@ export default function ChatPage() {
       if (wsRef.current === socket) {
         wsRef.current = null;
       }
+      setActiveUsersCount(0);
     };
     
     wsRef.current = socket;
@@ -253,6 +253,17 @@ export default function ChatPage() {
         ts: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }));
     }
+  };
+
+  const handleLeaveRoom = () => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    setRoomToken(null);
+    setShowChat(false);
+    setChatMessages([]);
+    setActiveUsersCount(0);
   };
 
   useEffect(() => {
@@ -893,6 +904,8 @@ export default function ChatPage() {
           onClose={() => setShowChat(false)}
           currentUser={{ name: profile?.name || 'User', picture: profile?.picture }}
           roomName={roomToken || 'Research'}
+          activeUsersCount={activeUsersCount}
+          onLeave={roomToken !== profile?.token ? handleLeaveRoom : undefined}
         />
       )}
     </div>
