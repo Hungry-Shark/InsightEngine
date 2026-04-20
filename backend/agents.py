@@ -113,7 +113,7 @@ def create_agents(provider="gemini"):
         llm=llm,
         allow_delegation=False,
         verbose=True,
-        max_iter=5,  # Increased for depth
+        max_iter=2,  # Increased for depth
         max_rpm=10
     )
 
@@ -143,7 +143,7 @@ def create_agents(provider="gemini"):
         llm=llm,
         allow_delegation=True,
         verbose=True,
-        max_iter=3,
+        max_iter=2,
         max_rpm=10
     )
 
