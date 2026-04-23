@@ -316,14 +316,14 @@ def run_research(req: ResearchRequest, user_id: str = Depends(get_authenticated_
         try:
             logger.info(f"Starting research with provider: {provider}")
 
-            researcher, writer, validator, manager, active_provider = create_agents(provider)
-            research_task, validate_task, write_task = create_tasks(researcher, writer, validator)
+            market_analyst, tech_architect, business_strategist, writer, validator, mgr, active_provider = create_agents(provider)
+            market_task, tech_task, business_task, validate_task, write_task = create_tasks(market_analyst, tech_architect, business_strategist, writer, validator)
 
             insight_crew = Crew(
-                agents=[researcher, validator, writer],
-                tasks=[research_task, validate_task, write_task],
+                agents=[market_analyst, tech_architect, business_strategist, validator, writer],
+                tasks=[market_task, tech_task, business_task, validate_task, write_task],
                 process=Process.hierarchical,
-                manager_agent=manager,
+                manager_agent=mgr,
                 verbose=True,
                 max_rpm=10
             )
@@ -331,7 +331,7 @@ def run_research(req: ResearchRequest, user_id: str = Depends(get_authenticated_
 
             raw = ""
             try:
-                raw = str(research_task.output.raw)
+                raw = str(market_task.output.raw)
             except Exception:
                 raw = "Raw data captured successfully."
 

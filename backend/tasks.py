@@ -1,52 +1,73 @@
 from crewai import Task
 
-
-def create_tasks(researcher, writer, validator):
+def create_tasks(market_analyst, tech_architect, business_strategist, writer, validator):
     """Create all tasks with the given agents.
 
-    Returns (research_task, validate_task, write_task) tuple.
+    Returns (market_task, tech_task, business_task, validate_task, write_task) tuple.
     """
-    # Task 1: Deep Discovery & Intelligence Gathering (System 2)
-    research_task = Task(
+
+    market_task = Task(
         description="""
-        1. Leverage deep reasoning and strategic exploration to fully research the user's query: '{topic}'.
-        2. Conduct comprehensive searches to find precise, accurate, and up-to-date data.
-        3. Identify the most critical and contextually relevant information needed to answer the query directly.
+        1. Deep dive into the market landscape for the user's project: '{topic}'.
+        2. Identify the core target audience and their pain points.
+        3. Analyze current competitors and find market gaps where this project can succeed.
         4. For each major finding:
            - Provide an accurate, verifiable breakdown.
            - Provide at least one LEGITIMATE, specific source URL.
-        5. REFLECTION LOOP: Before finalizing your data, self-audit to ensure you actually searched for and found the specifically requested information.
         """,
-        expected_output="A high-accuracy intelligence dossier containing all essential verified facts and URLs to fully answer the user's query.",
-        agent=researcher
+        expected_output="A high-accuracy market intelligence dossier containing audience demographics, competitor analysis, and clear market gaps with verified URLs.",
+        agent=market_analyst
     )
 
-    # Task 2: Adversarial Validation & Reliability Audit (Reflexion)
+    tech_task = Task(
+        description="""
+        1. Leverage strategic thinking to determine how to build the user's project: '{topic}'.
+        2. Identify the optimal tech stack, APIs, and frameworks needed for the project.
+        3. Highlight any potential technical bottlenecks or challenges.
+        4. For each major finding:
+           - Provide an accurate, verifiable breakdown of why this tech is the best fit.
+           - Provide at least one LEGITIMATE, specific source URL (e.g. documentation, tutorials).
+        """,
+        expected_output="A robust technical architecture and building plan containing the recommended tech stack, potential challenges, and verified URLs.",
+        agent=tech_architect
+    )
+
+    business_task = Task(
+        description="""
+        1. Formulate a comprehensive business and growth strategy for the project: '{topic}'.
+        2. Outline clear monetization strategies, revenue models, and a go-to-market plan.
+        3. Detail the best channels for marketing and promotion to reach the target audience identified.
+        4. For each major finding:
+           - Provide an accurate, verifiable breakdown.
+           - Provide at least one LEGITIMATE, specific source URL (e.g. case studies, strategy articles).
+        """,
+        expected_output="A detailed business strategy dossier containing monetization plans, promotion strategies, and verified URLs.",
+        agent=business_strategist
+    )
+
     validate_task = Task(
         description="""
-        1. Conduct a 'Reflexion' loop on the Discovery Specialist's dossier. 
-        2. Act as an adversarial judge: Challenge the factual validity of each claim against the original intention of the query.
-        3. Audit every URL for dead links or placeholders. 
+        1. Conduct a 'Reflexion' loop on all three dossiers (Market, Tech, and Business).
+        2. Act as an adversarial judge: Challenge the factual validity of each claim against the original intention of the project idea: '{topic}'.
+        3. Audit every URL for dead links or placeholders. Ensure the research is cohesive across the three domains.
         4. If a claim is weak or hallucinated without a search, force a re-evaluation or discard it.
-        5. Standardize citations into professional markdown [Title](URL).
+        5. Standardize all citations into professional markdown [Title](URL).
         """,
-        expected_output="A bulletproof, verified set of factual insights tailored to address the user's query without hallucination.",
+        expected_output="A bulletproof, verified set of combined factual insights (market, tech, business) tailored to address the user's project without hallucination.",
         agent=validator
     )
 
-    # Task 3: Cognitive Report Synthesis & Strategic Outlook
     write_task = Task(
         description="""
-        1. Synthesize the verified intelligence into a beautifully formatted markdown response.
-        2. Structure the response dynamically based on the intent of the original query: '{topic}'. 
-           - If they asked for a syllabus, list it out cleanly. 
-           - If they asked for a strategic essay, write a deep-dive. 
-           - Adjust headings dynamically. Do NOT force a multi-point sequence if it is not appropriate.
-        3. Ensure ZERO placeholders like '[URL]' remain. Integrate all verified links naturally.
+        1. Synthesize the verified market, technical, and business intelligence into a beautifully formatted markdown response.
+        2. Structure the response dynamically based on the project idea: '{topic}'.
+           - Must include sections for Market Analysis & Gaps, Technical Architecture & Building, and Business & Promotion Strategy.
+           - Adjust headings dynamically. Make it cohesive.
+        3. Ensure ZERO placeholders like '[URL]' remain. Integrate all verified links naturally as citations.
         4. DO NOT leak internal reasoning tokens like 'Thought' or 'Action' into the final markdown.
         """,
-        expected_output="A perfectly formatted markdown response directly answering the user's query without unnecessary fluff or internal reasoning.",
+        expected_output="A perfectly formatted markdown report presenting the full project plan (market, tech, business) without unnecessary fluff or internal reasoning.",
         agent=writer
     )
 
-    return research_task, validate_task, write_task
+    return market_task, tech_task, business_task, validate_task, write_task
