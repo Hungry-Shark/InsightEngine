@@ -1395,6 +1395,9 @@ a {
   color: var(--text-secondary);
   font-size: 15px;
   line-height: 1.8;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
 }
 
 .report-body h1,
@@ -1471,6 +1474,8 @@ a {
   padding: 18px 20px;
   margin: 16px 0;
   overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 .report-body pre code {
@@ -1479,6 +1484,8 @@ a {
   padding: 0;
   font-size: 13px;
   line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .report-body blockquote {
