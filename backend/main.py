@@ -130,7 +130,7 @@ except Exception as e:
 # ── In-memory state (mirrors Streamlit session_state) ──────────────
 _state: Dict[str, Any] = {
     "chat_history": [],
-    "my_stuff": [],
+    "my_stuff": {},
     "profile": {
         "name": "User",
         "email": "",
@@ -454,7 +454,7 @@ def get_mystuff(user_id: str = Depends(get_authenticated_user)):
         for it in items:
             it.pop("created_at", None)
         return {"items": items}
-    return {"items": _state.get("my_stuff", [])}
+    return {"items": list(reversed(list(_state.get("my_stuff", {}).values())))}
 
 @app.post("/api/mystuff")
 def add_mystuff(item: MyStuffItem, user_id: str = Depends(get_authenticated_user)):
@@ -465,9 +465,9 @@ def add_mystuff(item: MyStuffItem, user_id: str = Depends(get_authenticated_user
         entry.pop("created_at", None)
     else:
         if "my_stuff" not in _state:
-            _state["my_stuff"] = []
-        if not any(existing.get("id") == item.id for existing in _state["my_stuff"]):
-            _state["my_stuff"].insert(0, entry)
+            _state["my_stuff"] = {}
+        if item.id not in _state["my_stuff"]:
+            _state["my_stuff"][item.id] = entry
     return {"ok": True}
 
 @app.delete("/api/mystuff/{item_id}")
@@ -476,7 +476,7 @@ def delete_mystuff(item_id: str, user_id: str = Depends(get_authenticated_user))
         db.collection("users").document(user_id).collection("mystuff").document(item_id).delete()
     else:
         if "my_stuff" in _state:
-            _state["my_stuff"] = [it for it in _state["my_stuff"] if it.get("id") != item_id]
+            _state["my_stuff"].pop(item_id, None)
     return {"ok": True}
 
 # ── Profile ──────────────────────────────────────────────────────────
