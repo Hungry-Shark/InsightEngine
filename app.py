@@ -9,15 +9,18 @@ import json
 
 # Load environment variables
 from dotenv import load_dotenv
+
 load_dotenv()
+
 
 # -------------------------------------------------------------------
 # Helpers
 # -------------------------------------------------------------------
 def get_base64_of_bin_file(bin_file):
-    with open(bin_file, 'rb') as f:
+    with open(bin_file, "rb") as f:
         data = f.read()
     return base64.b64encode(data).decode()
+
 
 try:
     bg_b64 = get_base64_of_bin_file("bg_texture.png")
@@ -39,22 +42,23 @@ st.set_page_config(
 # Session-state bootstrap
 # -------------------------------------------------------------------
 DEFAULTS = {
-    "view_mode":        "chat",
+    "view_mode": "chat",
     "report_generated": False,
-    "raw_data":         "",
-    "final_report":     "",
-    "current_topic":    "",
-    "chat_history":     [],          # list of {"topic": ..., "report": ..., "ts": ...}
-    "profile_name":     "User",
-    "profile_email":    "",
-    "profile_bio":      "",
-    "settings_theme":   "Royal Purple",
-    "settings_model":   "gemini-3-flash-preview",
+    "raw_data": "",
+    "final_report": "",
+    "current_topic": "",
+    "chat_history": [],  # list of {"topic": ..., "report": ..., "ts": ...}
+    "profile_name": "User",
+    "profile_email": "",
+    "profile_bio": "",
+    "settings_theme": "Royal Purple",
+    "settings_model": "gemini-3-flash-preview",
     "settings_verbose": False,
 }
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
 
 # -------------------------------------------------------------------
 # Routing helpers
@@ -63,6 +67,7 @@ def set_view(mode):
     st.session_state.view_mode = mode
     st.rerun()
 
+
 def reset_chat():
     st.session_state.report_generated = False
     st.session_state.raw_data = ""
@@ -70,6 +75,7 @@ def reset_chat():
     st.session_state.current_topic = ""
     st.session_state.view_mode = "chat"
     st.rerun()
+
 
 # -------------------------------------------------------------------
 # Master CSS block  (no f-string – bg injected via .replace())
@@ -352,7 +358,7 @@ with st.sidebar:
             <span class="sidebar-logo-icon">✨</span>
             <span class="sidebar-logo-text">InsightEngine</span>
         </div>""",
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
     # ── Main navigation ──────────────────────────────────────
@@ -377,9 +383,13 @@ with st.sidebar:
     # ── Recent history ────────────────────────────────────────
     history = st.session_state.get("chat_history", [])
     if history:
-        st.markdown('<div class="sidebar-section-label">Recent</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="sidebar-section-label">Recent</div>', unsafe_allow_html=True
+        )
         for i, item in enumerate(reversed(history[-5:])):
-            label = item.get("topic", "Untitled")[:26] + ("…" if len(item.get("topic",""))>26 else "")
+            label = item.get("topic", "Untitled")[:26] + (
+                "…" if len(item.get("topic", "")) > 26 else ""
+            )
             if st.button(f"   {label}", key=f"hist_item_{i}"):
                 st.session_state.final_report = item["report"]
                 st.session_state.raw_data = item.get("raw_data", "")
@@ -392,9 +402,13 @@ with st.sidebar:
     st.markdown('<hr class="sidebar-divider">', unsafe_allow_html=True)
 
     # ── Bottom section ────────────────────────────────────────
-    st.markdown('<div class="sidebar-section-label">Account</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="sidebar-section-label">Account</div>', unsafe_allow_html=True
+    )
 
-    active_cls = "sidebar-active-btn" if st.session_state.view_mode == "settings" else ""
+    active_cls = (
+        "sidebar-active-btn" if st.session_state.view_mode == "settings" else ""
+    )
     with st.container():
         st.markdown(f'<div class="{active_cls}">', unsafe_allow_html=True)
         if st.button("  ⚙️  Settings", key="nav_settings"):
@@ -420,45 +434,94 @@ if st.session_state.view_mode == "chat":
     # Logo + title
     st.markdown(
         f'<div style="text-align:center;margin-bottom:0.4rem;">{SVG_LOGO}</div>',
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
-    st.markdown("<div class='main-title'>How can I help you today?</div>", unsafe_allow_html=True)
-    st.markdown("<div class='main-subtitle'>AI-powered deep research & report generation</div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='main-title'>How can I help you today?</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<div class='main-subtitle'>AI-powered deep research & report generation</div>",
+        unsafe_allow_html=True,
+    )
 
     with st.form(key="research_form", clear_on_submit=False):
         topic = st.text_area(
             "Research topic",
             placeholder="Ask InsightEngine to research something...",
-            label_visibility="collapsed"
+            label_visibility="collapsed",
         )
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            generate_clicked = st.form_submit_button("✨ Generate Report", use_container_width=True)
+            generate_clicked = st.form_submit_button(
+                "✨ Generate Report", use_container_width=True
+            )
 
     if generate_clicked and topic:
         google_api = os.environ.get("GOOGLE_API_KEY")
         tavily_api = os.environ.get("TAVILY_API_KEY")
 
         if not google_api or not tavily_api:
-            st.error("⚠️ Missing API Keys in the `.env` file. Please add GOOGLE_API_KEY and TAVILY_API_KEY.")
+            st.error(
+                "⚠️ Missing API Keys in the `.env` file. Please add GOOGLE_API_KEY and TAVILY_API_KEY."
+            )
         else:
-            with st.spinner("InsightEngine is researching and writing… this may take a minute or two."):
+            with st.spinner(
+                "InsightEngine is researching and writing… this may take a minute or two."
+            ):
+                import sys
+
+                if "backend" not in sys.path:
+                    sys.path.insert(0, "backend")
                 import agents
                 import tasks
+
                 importlib.reload(agents)
                 importlib.reload(tasks)
 
+                (
+                    market_analyst,
+                    tech_architect,
+                    business_strategist,
+                    writer,
+                    validator,
+                    manager,
+                    _,
+                ) = agents.create_agents()
+                market_task, tech_task, business_task, validate_task, write_task = (
+                    tasks.create_tasks(
+                        market_analyst,
+                        tech_architect,
+                        business_strategist,
+                        writer,
+                        validator,
+                    )
+                )
+
                 insight_crew = Crew(
-                    agents=[agents.researcher, agents.validator, agents.writer],
-                    tasks=[tasks.research_task, tasks.validate_task, tasks.write_task],
-                    process=Process.sequential
+                    agents=[
+                        market_analyst,
+                        tech_architect,
+                        business_strategist,
+                        validator,
+                        writer,
+                    ],
+                    tasks=[
+                        market_task,
+                        tech_task,
+                        business_task,
+                        validate_task,
+                        write_task,
+                    ],
+                    process=Process.hierarchical,
+                    manager_agent=manager,
                 )
 
                 result = insight_crew.kickoff(inputs={"topic": topic})
 
                 raw = ""
                 try:
-                    raw = str(tasks.research_task.output.raw)
+                    raw = str(market_task.output.raw)
                 except Exception:
                     raw = "Raw data captured successfully."
 
@@ -469,12 +532,14 @@ if st.session_state.view_mode == "chat":
                 st.session_state["current_topic"] = topic
 
                 # Append to chat history
-                st.session_state["chat_history"].append({
-                    "topic":    topic,
-                    "report":   result.raw,
-                    "raw_data": raw,
-                    "ts":       datetime.datetime.now().strftime("%b %d, %H:%M"),
-                })
+                st.session_state["chat_history"].append(
+                    {
+                        "topic": topic,
+                        "report": result.raw,
+                        "raw_data": raw,
+                        "ts": datetime.datetime.now().strftime("%b %d, %H:%M"),
+                    }
+                )
 
     if st.session_state["report_generated"]:
         st.markdown("---")
@@ -482,17 +547,24 @@ if st.session_state.view_mode == "chat":
         # Raw data snippet
         st.markdown("### 🔍 Raw Research Data Snippet")
         ui.table(
-            data=[{"Agent": "Lead Researcher", "Output Preview": st.session_state["raw_data"][:250] + "…"}],
-            maxHeight=200
+            data=[
+                {
+                    "Agent": "Lead Researcher",
+                    "Output Preview": st.session_state["raw_data"][:250] + "…",
+                }
+            ],
+            maxHeight=200,
         )
 
         ui.badges(
             badge_list=[("Research Complete", "default"), ("AI Verified", "outline")],
-            class_name="flex gap-2 mb-4 mt-4"
+            class_name="flex gap-2 mb-4 mt-4",
         )
 
         st.markdown("<div class='stCard'>", unsafe_allow_html=True)
-        ui.element("h2", content="Final Research Report", class_name="text-xl font-bold mb-4")
+        ui.element(
+            "h2", content="Final Research Report", class_name="text-xl font-bold mb-4"
+        )
         st.markdown(st.session_state["final_report"])
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -508,6 +580,7 @@ if st.session_state.view_mode == "chat":
         with c2:
             try:
                 from utils import export_as_pdf
+
                 pdf_bytes = export_as_pdf(st.session_state["final_report"])
                 st.download_button(
                     label="📥 Download as PDF",
@@ -533,13 +606,17 @@ elif st.session_state.view_mode == "history":
             "<p style='font-size:40px;margin-bottom:8px;'>📭</p>"
             "<p style='color:rgba(247,231,206,0.5); font-size:16px;'>No history yet. Start researching!</p>"
             "</div>",
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
     else:
         for i, item in enumerate(reversed(history)):
             idx = len(history) - 1 - i
-            with st.expander(f"🔍  {item['topic']}  —  {item.get('ts', '')}", expanded=False):
-                st.markdown(item["report"][:800] + ("…" if len(item["report"]) > 800 else ""))
+            with st.expander(
+                f"🔍  {item['topic']}  —  {item.get('ts', '')}", expanded=False
+            ):
+                st.markdown(
+                    item["report"][:800] + ("…" if len(item["report"]) > 800 else "")
+                )
                 c1, c2, c3 = st.columns([2, 2, 1])
                 with c1:
                     if st.button("Open", key=f"open_{idx}"):
@@ -573,15 +650,19 @@ elif st.session_state.view_mode == "profile":
     st.markdown("<div class='section-card'>", unsafe_allow_html=True)
     st.markdown("<h3>Personal Info</h3>", unsafe_allow_html=True)
 
-    name  = st.text_input("Display Name",  value=st.session_state.profile_name)
-    email = st.text_input("Email Address",  value=st.session_state.profile_email)
-    bio   = st.text_area ("Short Bio",      value=st.session_state.profile_bio,
-                          label_visibility="visible", height=80)
+    name = st.text_input("Display Name", value=st.session_state.profile_name)
+    email = st.text_input("Email Address", value=st.session_state.profile_email)
+    bio = st.text_area(
+        "Short Bio",
+        value=st.session_state.profile_bio,
+        label_visibility="visible",
+        height=80,
+    )
 
     if st.button("💾  Save Profile"):
-        st.session_state.profile_name  = name
+        st.session_state.profile_name = name
         st.session_state.profile_email = email
-        st.session_state.profile_bio   = bio
+        st.session_state.profile_bio = bio
         st.success("Profile saved!")
 
     st.markdown("</div>", unsafe_allow_html=True)
@@ -594,7 +675,7 @@ elif st.session_state.view_mode == "profile":
     st.markdown(
         f"<span class='badge'>Google Gemini</span> {g_ok} &nbsp;&nbsp; "
         f"<span class='badge'>Tavily Search</span> {t_ok}",
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
     st.caption("Keys are loaded from your `.env` file.")
     st.markdown("</div>", unsafe_allow_html=True)
@@ -621,17 +702,17 @@ elif st.session_state.view_mode == "settings":
     model = st.selectbox(
         "LLM Model",
         ["gemini-3-flash-preview", "gemini-2.0-flash", "gemini-1.5-pro"],
-        index=0
+        index=0,
     )
-    verbose = st.checkbox("Enable verbose agent logging", value=st.session_state.settings_verbose)
+    verbose = st.checkbox(
+        "Enable verbose agent logging", value=st.session_state.settings_verbose
+    )
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<div class='section-card'>", unsafe_allow_html=True)
     st.markdown("<h3>UI Preferences</h3>", unsafe_allow_html=True)
     theme = st.selectbox(
-        "Theme",
-        ["Royal Purple", "Midnight Blue", "Forest Green"],
-        index=0
+        "Theme", ["Royal Purple", "Midnight Blue", "Forest Green"], index=0
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -641,15 +722,15 @@ elif st.session_state.view_mode == "settings":
         st.session_state["chat_history"] = []
         st.success("Chat history cleared.")
     if st.button("🔄  Reset All Settings"):
-        st.session_state.settings_theme   = "Royal Purple"
-        st.session_state.settings_model   = "gemini-3-flash-preview"
+        st.session_state.settings_theme = "Royal Purple"
+        st.session_state.settings_model = "gemini-3-flash-preview"
         st.session_state.settings_verbose = False
         st.success("Settings reset to defaults.")
     st.markdown("</div>", unsafe_allow_html=True)
 
     if st.button("💾  Save Settings"):
-        st.session_state.settings_theme   = theme
-        st.session_state.settings_model   = model
+        st.session_state.settings_theme = theme
+        st.session_state.settings_model = model
         st.session_state.settings_verbose = verbose
         st.success("Settings saved!")
 

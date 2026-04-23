@@ -11,16 +11,9 @@ groq_key = os.getenv("GROQ_API_KEY")
 
 
 def _get_llm(provider="gemini"):
-    """Create an LLM instance for the given provider using CrewAI's native LLM class.
-
-    Returns (llm, provider_name) tuple.
-    """
     if provider == "groq":
         if not groq_key:
-            raise RuntimeError(
-                "No GROQ_API_KEY found in .env. "
-                "Get a free key at https://console.groq.com"
-            )
+            raise RuntimeError("No GROQ_API_KEY found in .env.")
         llm = LLM(
             model="groq/llama-3.3-70b-versatile",
             temperature=0.5,
@@ -31,25 +24,18 @@ def _get_llm(provider="gemini"):
     elif provider == "kaggle-qwen":
         kaggle_url = os.environ.get("KAGGLE_INTERNVL_URL")
         if not kaggle_url:
-            raise RuntimeError(
-                "No KAGGLE_INTERNVL_URL found in .env. "
-                "Run the Kaggle notebook and update the URL."
-            )
-        # OpenAI-compatible API on Kaggle
+            raise RuntimeError("No KAGGLE_INTERNVL_URL found in .env.")
         llm = LLM(
-            model="openai/qwen2-vl", # Updated to Qwen2-VL
+            model="openai/qwen2-vl",
             base_url=f"{kaggle_url.rstrip('/')}/v1",
-            api_key="none", # Not needed for the custom tunnel
+            api_key="none",
             temperature=0.7,
         )
         return llm, "kaggle-qwen"
     elif provider == "kaggle-internvl38b":
         kaggle_38b_url = os.environ.get("KAGGLE_INTERNVL38B_URL")
         if not kaggle_38b_url:
-            raise RuntimeError(
-                "No KAGGLE_INTERNVL38B_URL found in .env. "
-                "Run the InternVL2.5-38B Kaggle notebook and update the URL."
-            )
+            raise RuntimeError("No KAGGLE_INTERNVL38B_URL found in .env.")
         llm = LLM(
             model="openai/internvl2.5-38b",
             base_url=f"{kaggle_38b_url.rstrip('/')}/v1",
@@ -69,10 +55,6 @@ def _get_llm(provider="gemini"):
 
 
 def create_agents(provider="gemini"):
-    """Create all agents with the given LLM provider.
-
-    Returns (researcher, writer, validator, manager, provider_name) tuple.
-    """
     llm, provider_name = _get_llm(provider)
     logger.info(f"Creating agents with LLM provider: {provider_name}")
 
@@ -80,51 +62,62 @@ def create_agents(provider="gemini"):
 
     @tool("Tavily Intelligence Search")
     def search_tool(query: str) -> str:
-        """High-depth cognitive search. Useful for finding technical facts and verifiable breakthroughs."""
+        """High-depth cognitive search. Useful for finding technical facts, market data, and verifiable breakthroughs."""
         tavily = TavilySearchResults(
             max_results=5,
-            tavily_api_key=os.environ.get("TAVILY_API_KEY")
+            tavily_api_key=os.environ.get("TAVILY_API_KEY", "")
         )
         return tavily.run(query)
 
     manager = Agent(
-        role='Intelligence Operations Manager',
-        goal='Oversee the complex cognitive workload of the research team to ensure 100% accurate, high-depth synthesis.',
-        backstory="""You are the strategic brain of the InsightEngine. Your job is to break 
-        down complex research goals into specialized sub-tasks, coordinate the efforts 
-        between discovery, synthesis, and validation, and ensure that the final 
-        output reflects System 2 level deep-reasoning. You audit the trajectory of 
-        decisions to catch logical gaps early.""",
+        role='Project Operations Manager',
+        goal='Oversee the complex cognitive workload of the project research team to ensure 100% accurate, high-depth synthesis covering market, tech, and business aspects.',
+        backstory="You are the strategic brain of the InsightEngine. Your job is to break down complex project goals into specialized sub-tasks, coordinate the efforts between market analysis, technical architecture, business strategy, synthesis, and validation. You audit the trajectory of decisions to catch logical gaps early.",
         llm=llm,
         allow_delegation=True,
         verbose=True
     )
 
-    researcher = Agent(
-        role='Deep Discovery Specialist (System 2 Explorer)',
-        goal='Employ Tree of Thoughts (ToT) exploration to identify, verify, and verify high-priority technical data on {topic}',
-        backstory="""You are a world-class technical investigator utilizing 'System 2' 
-        slow-reasoning. Instead of a linear search, you explore multiple research 
-        trajectories (ToT), evaluating each for technical depth and citation strength. 
-        Your mission is to find VERIFIABLE facts. If a lead is a dead end, you backtrack.
-        CRITICAL: Every fact found MUST be linked to a real, accessible source URL. 
-         halluncinations are caught by your internal reflection loop before you report findings.""",
+    market_analyst = Agent(
+        role='Market & Competitor Analyst',
+        goal='Employ deep exploration to identify market gaps, target audience, and competitors for the project on {topic}.',
+        backstory="You are a world-class market researcher. You explore market trends, evaluate competitor strategies, and identify unique market gaps and target demographics. CRITICAL: Every fact found MUST be linked to a real, accessible source URL.",
         tools=[search_tool],
         llm=llm,
         allow_delegation=False,
         verbose=True,
-        max_iter=2,  # Increased for depth
+        max_iter=2,
+        max_rpm=10
+    )
+
+    tech_architect = Agent(
+        role='Technical Architect & Builder',
+        goal='Determine the optimal tech stack, building process, and technical constraints for the project on {topic}.',
+        backstory="You are a seasoned technical lead. You research how to actually build the proposed project. You identify the best technologies, frameworks, APIs, and potential technical hurdles. CRITICAL: Provide citations and documentation links for tech choices.",
+        tools=[search_tool],
+        llm=llm,
+        allow_delegation=False,
+        verbose=True,
+        max_iter=2,
+        max_rpm=10
+    )
+
+    business_strategist = Agent(
+        role='Business & Growth Strategist',
+        goal='Formulate a business plan, revenue model, and promotion strategy for the project on {topic}.',
+        backstory="You are a savvy business strategist. You research monetization strategies, launch plans, marketing channels, and revenue models suitable for the project. CRITICAL: Validate your strategies with real-world examples and source URLs.",
+        tools=[search_tool],
+        llm=llm,
+        allow_delegation=False,
+        verbose=True,
+        max_iter=2,
         max_rpm=10
     )
 
     writer = Agent(
         role='Cognitive Synthesis Architect',
-        goal='Synthesize raw technical data into a premium markdown report with perfect structural and logical integrity.',
-        backstory="""You are a master of technical narrative and structural logic. 
-        You don't just summarize; you synthesize insights into a cohesive strategic 
-        framework. You treat the report architecture as a neuro-symbolic bridge between 
-        raw data and human understanding. MANDATORY: All citations must be proper, 
-        clickable links. Placeholder tokens like '[URL]' are strictly forbidden.""",
+        goal='Synthesize raw market, technical, and business data into a premium markdown report with perfect structural and logical integrity.',
+        backstory="You are a master of technical and business narrative. You synthesize insights into a cohesive strategic framework for the user's project. MANDATORY: All citations must be proper, clickable links. Placeholder tokens like '[URL]' are strictly forbidden.",
         llm=llm,
         allow_delegation=False,
         verbose=True,
@@ -134,12 +127,8 @@ def create_agents(provider="gemini"):
 
     validator = Agent(
         role='Critical Reflexion Auditor',
-        goal='Perform an adversarial audit of research findings using the LLM-as-a-Judge pattern for 100% accuracy.',
-        backstory="""You are an adversarial auditor tasked with catching hallucinations. 
-        You follow the 'Act-Observe-Reflect' loop. If you find a logical gap or a 
-        missing citation, you reject the draft and force a re-discovery phase. 
-        Your standards are absolute: if it isn't verified, it doesn't exist in the report. 
-        You focus on 'System 2' oversight to ensure high-stakes technical reliability.""",
+        goal='Perform an adversarial audit of all research findings using the LLM-as-a-Judge pattern to ensure 100% accuracy and complete coverage.',
+        backstory="You are an adversarial auditor tasked with catching hallucinations and ensuring the business, tech, and market research are perfectly aligned and cited. You follow the 'Act-Observe-Reflect' loop. Your standards are absolute: if it isn't verified, it doesn't exist in the report.",
         llm=llm,
         allow_delegation=True,
         verbose=True,
@@ -147,12 +136,15 @@ def create_agents(provider="gemini"):
         max_rpm=10
     )
 
-    return researcher, writer, validator, manager, provider_name
+    return market_analyst, tech_architect, business_strategist, writer, validator, manager, provider_name
 
 
-# Default agents (created at import time with Gemini)
+# Default agents
 try:
-    researcher, writer, validator, manager, _active_provider = create_agents("gemini")
+    market_analyst, tech_architect, business_strategist, writer, validator, manager, _active_provider = create_agents("gemini")
 except Exception as e:
     logger.warning(f"Gemini init failed ({e}), trying Groq fallback...")
-    researcher, writer, validator, manager, _active_provider = create_agents("groq")
+    try:
+        market_analyst, tech_architect, business_strategist, writer, validator, manager, _active_provider = create_agents("groq")
+    except Exception:
+        pass # allow module to load even if APIs are missing at init time
